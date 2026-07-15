@@ -1,14 +1,15 @@
+# LLM
 import subprocess
 from langchain_ollama import ChatOllama
 from langchain_core.tools import tool
 # Modern LangChain core structural imports
 from langchain_core.messages import SystemMessage, HumanMessage
 
-# LLM Configuration
+# LLM Configuration 
 llm = ChatOllama(
     model="qwen3-coder:30b",
     temperature=0,
-    num_ctx=8192,      
+    num_ctx=8192,
 )
 
 # TOOLS
@@ -28,7 +29,7 @@ def get_docker_containers():
     result = subprocess.run(["docker", "ps"], capture_output=True, text=True)
     return result.stdout or result.stderr
 
-# Bind tools directly to the model (This replaces create_react_agent!)
+# Bind tools directly to the model 
 tools = [get_pods, get_docker_containers]
 llm_with_tools = llm.bind_tools(tools)
 
