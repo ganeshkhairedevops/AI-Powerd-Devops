@@ -7,7 +7,7 @@ from langchain_core.messages import SystemMessage, HumanMessage
 
 # LLM Configuration 
 llm = ChatOllama(
-    model="qwen3-coder:30b",
+    model="qwen3-coder:30b", # best for coding free locally
     temperature=0,
     num_ctx=8192,
 )
