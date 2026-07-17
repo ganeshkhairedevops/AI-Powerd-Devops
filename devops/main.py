@@ -1,3 +1,4 @@
+# Entry point
 from agent import agent
 
 while True:

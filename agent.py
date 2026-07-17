@@ -4,11 +4,11 @@ from langchain_ollama import ChatOllama
 from langchain_core.tools import tool
 from langchain.agents import create_agent
 
-# this is coming from Ollama (ollama connect)
+#  (ollama connect)
 llm = ChatOllama(
     model="qwen3-coder:30b",
     temperature=0,
-    num_ctx=8192,      # avoid truncating large kubectl/docker output
+    num_ctx=8192,      
 )
 
 # TOOL

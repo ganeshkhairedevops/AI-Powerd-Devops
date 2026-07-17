@@ -1,3 +1,5 @@
+# Ollama LLM configuration
+
 from langchain_ollama import ChatOllama
 
 llm = ChatOllama(

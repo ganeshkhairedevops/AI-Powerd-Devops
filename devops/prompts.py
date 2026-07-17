@@ -1,3 +1,4 @@
+# System prompt
 SYSTEM_PROMPT = """
 You are an expert DevOps AI Assistant.
 
