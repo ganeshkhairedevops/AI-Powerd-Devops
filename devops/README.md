@@ -65,8 +65,15 @@ Start the main entry program to spin up the agent initialization terminal:
 
 ```bash
 python main.py
-```
 
+```
+Example prompts:
+
+```
+Ask DevOps Agent:
+Ask Devops Agent : > show me all pods
+Ask Devops Agent : > how meany containers is running?
+```
 ---
 
 ##  Project Roadmap (Coming Soon)
