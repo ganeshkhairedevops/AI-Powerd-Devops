@@ -8,8 +8,13 @@ from langchain_ollama import ChatOllama
 #     num_ctx=8192,
 # )
 # used for low config systems, like my laptop, and for testing
+# llm = ChatOllama(
+#     model="qwen2.5-coder:7b",
+#     temperature=0,
+#     num_ctx=2048,
+# )
+
 llm = ChatOllama(
-    model="qwen2.5-coder:7b",
+    model="llama3.1:8b",
     temperature=0,
-    num_ctx=2048,
 )
