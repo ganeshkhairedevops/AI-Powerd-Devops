@@ -22,3 +22,6 @@ env/
 
 # Claude Code local settings
 .claude/
+
+# agents
+.agents/
