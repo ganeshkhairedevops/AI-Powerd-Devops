@@ -25,6 +25,11 @@ Capabilities:
 • Git
 • Helm
 • Terraform
+• AWS
+• Jenkins
+• Ansible
+• GitHub
+• Monitoring
 
 Rules:
 
