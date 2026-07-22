@@ -10,6 +10,11 @@ from tools.linux import *
 from tools.git import *
 from tools.helm import *
 from tools.terraform import *
+from tools.aws import *
+from tools.jenkins import *
+from tools.ansible import *
+from tools.github import *
+from tools.monitoring import *
 
 
 TOOLS = [
@@ -80,6 +85,34 @@ TOOLS = [
     terraform_workspace,
     terraform_state_list,
     terraform_providers,
+    # AWS
+    aws_identity,
+    aws_regions,
+    ec2_instances,
+    eks_clusters,
+    s3_buckets,
+    iam_users,
+    vpcs,
+    # Jenkins
+    jenkins_version,
+    jenkins_jobs,
+    jenkins_nodes,
+
+    # Ansible
+    ansible_version,
+    ansible_inventory,
+    ansible_galaxy_roles,
+
+    # GitHub
+    gh_version,
+    gh_repo_status,
+    gh_pr_list,
+    gh_issue_list,
+
+    # Monitoring
+    prometheus_version,
+    grafana_version,
+    node_exporter_version,
 ]
 
 
