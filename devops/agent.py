@@ -18,11 +18,11 @@ from tools.monitoring import *
 
 
 TOOLS = [
+    # KUBERNETES
     get_pods,
     get_nodes,
     get_services,
     get_deployments,
-
     kubectl_version,
     kubectl_cluster_info,
     kubectl_contexts,
@@ -44,7 +44,7 @@ TOOLS = [
     kubectl_get_resource,
     kubectl_api_resources,
     kubectl_api_versions,
-
+    # DOCKER
     docker_ps,
     docker_images,
     docker_networks,
@@ -55,12 +55,12 @@ TOOLS = [
     docker_inspect,
     docker_image_inspect,
     docker_exec,
-
+    # LINUX
     disk_usage,
     memory_usage,
     cpu_info,
     running_processes,
-
+    # GIT
     git_status,
     git_branch,
     git_log,
@@ -71,12 +71,12 @@ TOOLS = [
     git_stash_list,
     git_current_commit,
     git_last_commit,
-
+    # HELM
     helm_list,
     helm_status,
     helm_history,
     helm_get_values,
-
+    # TERRAFORM
     terraform_version,
     terraform_validate,
     terraform_fmt,
