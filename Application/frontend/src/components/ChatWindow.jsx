@@ -6,11 +6,20 @@ import Message from "./Message";
 
 import PromptBox from "./PromptBox";
 
+import ToolExecution from "./ToolExecution";
+
 function ChatWindow() {
 
     const [messages,setMessages]=useState([]);
 
     const [loading,setLoading]=useState(false);
+
+    const [toolInfo, setToolInfo] = useState({
+      tool: "",
+      command: "",
+      execution_time: 0
+    });
+    
 
     async function askAgent(question){
 
@@ -32,6 +41,12 @@ function ChatWindow() {
 
                 message:question
 
+            });
+
+            setToolInfo({
+                tool: res.data.tool,
+                command: res.data.command,
+                execution_time: res.data.execution_time,
             });
 
             setMessages([
@@ -83,6 +98,11 @@ function ChatWindow() {
             <PromptBox
                 onSend={askAgent}
                 loading={loading}
+            />
+            <ToolExecution
+                tool={toolInfo.tool}
+                command={toolInfo.command}
+                execution={toolInfo.execution_time}
             />
 
         </div>
