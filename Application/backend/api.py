@@ -51,9 +51,17 @@ def chat(request: ChatRequest):
     )
 
     answer = response["messages"][-1].content
-
     return {
-        "success": True,
-        "question": request.message,
-        "answer": answer
+    "success": True,
+    "question": request.message,
+    "answer": answer,
+    "tool": "Unknown",
+    "command": "Unknown",
+    "execution_time": 0.0,
     }
+
+    # return {
+    #     "success": True,
+    #     "question": request.message,
+    #     "answer": answer
+    #}
