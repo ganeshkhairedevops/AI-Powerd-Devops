@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 
 import api from "../services/api";
 
@@ -91,6 +91,16 @@ function ChatWindow() {
                         />
 
                     )
+                }
+                {
+                    loading && (
+
+                        <div className="text-gray-400 animate-pulse mt-4">
+                            
+                            AI is thinking...
+                        </div>
+                        />
+                )
                 }
 
             </div>
