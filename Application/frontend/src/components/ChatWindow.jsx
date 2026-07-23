@@ -19,7 +19,8 @@ function ChatWindow() {
       command: "",
       execution_time: 0
     });
-    
+
+    const bottomRef = useRef(null);
 
     async function askAgent(question){
 
@@ -75,6 +76,12 @@ function ChatWindow() {
 
     }
 
+    useEffect(()=>{
+
+        bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+
+    }, [messages]);
+
     return(
 
         <div className="flex flex-col flex-1">
@@ -99,9 +106,8 @@ function ChatWindow() {
                             
                             AI is thinking...
                         </div>
-                        />
-                )
-                }
+                    
+                )}
 
             </div>
 
