@@ -1,81 +1,36 @@
-import { useState, useEffect, useRef } from "react";
-
-import api from "../services/api";
+import { useEffect, useRef } from "react";
 
 import Message from "./Message";
-
 import PromptBox from "./PromptBox";
+
+import useChat from "../hooks/useChat";
 
 function ChatWindow() {
 
-    const [messages,setMessages]=useState([]);
-
-    const [loading,setLoading]=useState(false);
+    const {
+        messages,
+        loading,
+        sendMessage,
+    } = useChat();
 
     const bottomRef = useRef(null);
 
-    async function askAgent(question){
+    useEffect(() => {
 
-        const updated=[
-            ...messages,
-            {
-                role:"user",
-                text:question
-            }
-        ];
-
-        setMessages(updated);
-
-        setLoading(true);
-
-        try{
-
-            const res=await api.post("/chat",{
-
-                message:question
-
-            });
-
-            setMessages([
-                ...updated,
-                {
-                    role:"assistant",
-                    text:res.data.answer
-                }
-            ]);
-
-        }
-
-        catch(error){
-
-            setMessages([
-                ...updated,
-                {
-                    role:"assistant",
-                    text:"Unable to connect to backend."
-                }
-            ]);
-
-        }
-
-        setLoading(false);
-
-    }
-
-    useEffect(()=>{
-
-        bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+        bottomRef.current?.scrollIntoView({
+            behavior: "smooth",
+        });
 
     }, [messages]);
 
-    return(
+    return (
 
         <div className="flex flex-col flex-1">
 
             <div className="flex-1 overflow-auto p-8">
 
                 {
-                    messages.map((m,index)=>
+                    messages.map((m, index) => (
 
                         <Message
                             key={index}
@@ -83,22 +38,27 @@ function ChatWindow() {
                             text={m.text}
                         />
 
-                    )
+                    ))
                 }
+
                 {
                     loading && (
 
                         <div className="text-gray-400 animate-pulse mt-4">
-                            
-                            AI is thinking...
+
+                            ?? AI is thinking...
+
                         </div>
-                    
-                )}
+
+                    )
+                }
+
+                <div ref={bottomRef}></div>
 
             </div>
 
             <PromptBox
-                onSend={askAgent}
+                onSend={sendMessage}
                 loading={loading}
             />
 
