@@ -1,53 +1,77 @@
+import { useState } from "react";
+import { FaEdit, FaTrash, FaCheck } from "react-icons/fa";
+
 function HistoryItem({
-
-    title,
-
+    chat,
     active,
-
-    onClick
-
+    onSelect,
+    onRename,
+    onDelete,
 }) {
+    const [editing, setEditing] = useState(false);
+    const [title, setTitle] = useState(chat.title);
+
+    function save() {
+        if (title.trim()) {
+            onRename(chat.id, title.trim());
+        }
+        setEditing(false);
+    }
 
     return (
-
-        <button
-
-            onClick={onClick}
-
-            className={`
-
-            w-full
-
-            text-left
-
-            p-3
-
-            rounded-lg
-
-            mb-2
-
-            transition
-
-            ${
-
+        <div
+            className={`group rounded-lg p-2 cursor-pointer transition ${
                 active
-
-                    ? "bg-cyan-700"
-
-                    : "hover:bg-slate-700"
-
-            }
-
-            `}
-
+                    ? "bg-blue-600"
+                    : "hover:bg-slate-800"
+            }`}
         >
+            <div className="flex items-center justify-between">
+                {editing ? (
+                    <input
+                        autoFocus
+                        value={title}
+                        onChange={(e) =>
+                            setTitle(e.target.value)
+                        }
+                        onBlur={save}
+                        onKeyDown={(e) => {
+                            if (e.key === "Enter") save();
+                        }}
+                        className="w-full bg-transparent outline-none text-sm"
+                    />
+                ) : (
+                    <span
+                        className="flex-1 text-sm truncate"
+                        onClick={() => onSelect(chat.id)}
+                    >
+                        ?? {chat.title}
+                    </span>
+                )}
 
-            ?? {title}
+                <div className="hidden group-hover:flex gap-2 ml-2">
+                    {editing ? (
+                        <FaCheck
+                            size={12}
+                            onClick={save}
+                        />
+                    ) : (
+                        <FaEdit
+                            size={12}
+                            onClick={() =>
+                                setEditing(true)
+                            }
+                        />
+                    )}
 
-        </button>
-
+                    <FaTrash
+                        size={12}
+                        onClick={() => onDelete(chat.id)}
+                    />
+                </div>
+            </div>
+        </div>
     );
-
 }
 
 export default HistoryItem;

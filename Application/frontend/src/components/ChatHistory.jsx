@@ -1,59 +1,74 @@
-import HistoryItem from "./HistoryItem";
+import { useMemo, useState } from "react";
+import { FaPlus } from "react-icons/fa";
 import { useChatContext } from "../context/ChatContext";
+import SearchBar from "./SearchBar";
+import HistoryItem from "./HistoryItem";
 
 function ChatHistory() {
-
     const {
-
         conversations,
-
-        createNewChat,
-
         currentChatId,
-
-        setCurrentChatId
-
+        createNewChat,
+        deleteChat,
+        renameChat,
+        setCurrentChatId,
     } = useChatContext();
 
+    const [search, setSearch] = useState("");
+
+    const filteredChats = useMemo(() => {
+        return conversations.filter((chat) =>
+            chat.title
+                .toLowerCase()
+                .includes(search.toLowerCase())
+        );
+    }, [conversations, search]);
+
     return (
-
-        <div className="p-4">
-
+        <>
             <button
                 onClick={createNewChat}
-                className="w-full bg-cyan-600 rounded-lg py-2 mb-5"
+                className="w-full flex items-center justify-center gap-2 rounded-lg bg-blue-600 py-2 hover:bg-blue-700 transition"
             >
-
-                + New Chat
-
+                <FaPlus />
+                New Chat
             </button>
 
-            {
+            <div className="mt-4">
+                <SearchBar
+                    value={search}
+                    onChange={setSearch}
+                />
+            </div>
 
-                conversations.map(chat => (
+            <div className="mt-6">
+                <h3 className="text-xs uppercase text-gray-400 mb-2">
+                    Recent Chats
+                </h3>
 
-                    <HistoryItem
-
-                        key={chat.id}
-
-                        title={chat.title}
-
-                        active={chat.id === currentChatId}
-
-                        onClick={() =>
-                            setCurrentChatId(chat.id)
-                        }
-
-                    />
-
-                ))
-
-            }
-
-        </div>
-
+                <div className="space-y-2">
+                    {filteredChats.map((chat) => (
+                        <HistoryItem
+                            key={chat.id}
+                            chat={chat}
+                            active={
+                                chat.id === currentChatId
+                            }
+                            onSelect={
+                                setCurrentChatId
+                            }
+                            onRename={
+                                renameChat
+                            }
+                            onDelete={
+                                deleteChat
+                            }
+                        />
+                    ))}
+                </div>
+            </div>
+        </>
     );
-
 }
 
 export default ChatHistory;

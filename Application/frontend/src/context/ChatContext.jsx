@@ -27,19 +27,25 @@ export function ChatProvider({ children }) {
 
     function createNewChat() {
 
-        const id = Date.now();
+    const id = Date.now();
 
-        const chat = {
-            id,
-            title: "New Chat",
-            messages: [],
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-        };
+    const chat = {
 
-        setConversations(prev => [chat, ...prev]);
-        setCurrentChatId(id);
-    }
+        id,
+        title: "New Chat",
+        messages: [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+
+    };
+
+    setConversations(prev => [chat, ...prev]);
+
+    setCurrentChatId(id);
+
+    return id;
+
+    }   
 
     function deleteChat(id) {
 

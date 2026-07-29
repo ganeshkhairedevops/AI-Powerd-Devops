@@ -4,14 +4,15 @@ import Message from "./Message";
 import PromptBox from "./PromptBox";
 
 import useChat from "../hooks/useChat";
+import { useChatContext } from "../context/ChatContext";
 
 function ChatWindow() {
 
-    const {
-        messages,
-        loading,
-        sendMessage,
-    } = useChat();
+    const { currentChat } = useChatContext();
+
+    const { loading, sendMessage } = useChat();
+
+    const messages = currentChat?.messages || [];
 
     const bottomRef = useRef(null);
 
@@ -29,29 +30,25 @@ function ChatWindow() {
 
             <div className="flex-1 overflow-auto p-8">
 
-                {
-                    messages.map((m, index) => (
+                {messages.map((message, index) => (
 
-                        <Message
-                            key={index}
-                            role={m.role}
-                            text={m.text}
-                        />
+                    <Message
+                        key={index}
+                        role={message.role}
+                        text={message.content}
+                    />
 
-                    ))
-                }
+                ))}
 
-                {
-                    loading && (
+                {loading && (
 
-                        <div className="text-gray-400 animate-pulse mt-4">
+                    <div className="text-gray-400 animate-pulse mt-4">
 
-                            ?? AI is thinking...
+                        ?? AI is thinking...
 
-                        </div>
+                    </div>
 
-                    )
-                }
+                )}
 
                 <div ref={bottomRef}></div>
 
