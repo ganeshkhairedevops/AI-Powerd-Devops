@@ -1,3 +1,6 @@
+import { FaRobot } from "react-icons/fa";
+import { FaCircle } from "react-icons/fa";
+
 function Header() {
   return (
     <header className="h-16 bg-slate-900 border-b border-slate-700 flex items-center justify-between px-6">
@@ -5,7 +8,8 @@ function Header() {
         DevOps AI Agent
       </h1>
 
-      <div className="flex gap-4">
+      <div div className="flex items-center gap-2 text-green-500">
+        <FaCircle className="text-green-400" />
         <span className="text-green-400"> Connected</span>
       </div>
     </header>
