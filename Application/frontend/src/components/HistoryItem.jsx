@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { FaEdit, FaTrash, FaCheck } from "react-icons/fa";
+import { FaComments, FaEdit, FaTrash, FaCheck } from "react-icons/fa";
 
 function HistoryItem({
     chat,
@@ -42,10 +42,11 @@ function HistoryItem({
                     />
                 ) : (
                     <span
-                        className="flex-1 text-sm truncate"
+                        className="flex items-center gap-2 flex-1 text-sm truncate"
                         onClick={() => onSelect(chat.id)}
                     >
-                        ?? {chat.title}
+                        <FaComments className="text-cyan-400" />
+                        {chat.title}
                     </span>
                 )}
 
