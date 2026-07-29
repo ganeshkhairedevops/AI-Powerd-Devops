@@ -1,22 +1,39 @@
 import { useState } from "react";
 import api from "../services/api";
+import { useChatContext } from "../context/ChatContext";
 
 export default function useChat() {
 
-    const [messages, setMessages] = useState([]);
+    const {
+        currentChat,
+        currentChatId,
+        createNewChat,
+        updateMessages,
+    } = useChatContext();
+
     const [loading, setLoading] = useState(false);
 
     async function sendMessage(question) {
 
-        const updated = [
-            ...messages,
+        let chatId = currentChatId;
+
+        // Create a chat automatically if none exists
+        if (!chatId) {
+            chatId = createNewChat();
+        }
+
+        const existingMessages = currentChat?.messages || [];
+
+        const updatedMessages = [
+            ...existingMessages,
             {
                 role: "user",
-                text: question,
+                content: question,
             },
         ];
 
-        setMessages(updated);
+        updateMessages(chatId, updatedMessages);
+
         setLoading(true);
 
         try {
@@ -25,21 +42,21 @@ export default function useChat() {
                 message: question,
             });
 
-            setMessages([
-                ...updated,
+            updateMessages(chatId, [
+                ...updatedMessages,
                 {
                     role: "assistant",
-                    text: res.data.answer,
+                    content: res.data.answer,
                 },
             ]);
 
         } catch {
 
-            setMessages([
-                ...updated,
+            updateMessages(chatId, [
+                ...updatedMessages,
                 {
                     role: "assistant",
-                    text: "Unable to connect to backend.",
+                    content: "Unable to connect to backend.",
                 },
             ]);
 
@@ -48,11 +65,12 @@ export default function useChat() {
             setLoading(false);
 
         }
+
     }
 
     return {
-        messages,
         loading,
         sendMessage,
     };
+
 }

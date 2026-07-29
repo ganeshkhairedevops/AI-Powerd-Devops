@@ -1,9 +1,10 @@
 import {
-    FaDocker,
-    FaLinux,
-    FaGithub,
-    FaAws,
-    FaCog,
+  FaDocker,
+  FaLinux,
+  FaGithub,
+  FaAws,
+  FaCog,
+  FaRobot,
 } from "react-icons/fa";
 
 import {
@@ -33,8 +34,9 @@ function Sidebar() {
         <aside className="w-72 h-screen bg-slate-900 border-r border-slate-700 flex flex-col">
 
             <div className="p-5 border-b border-slate-700">
-                <h1 className="text-xl font-bold">
-                    ?? DevOps AI Agent
+                <h1 className="flex items-center gap-2 text-xl font-bold">
+                     <FaRobot className="text-cyan-400" />
+                     DevOps AI Agent
                 </h1>
                 <p className="text-xs text-gray-400 mt-1">
                     AI Powered DevOps Assistant
