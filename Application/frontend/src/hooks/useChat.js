@@ -17,12 +17,13 @@ export default function useChat() {
 
         let chatId = currentChatId;
 
-        // Create a chat automatically if none exists
+        // Create chat automatically
         if (!chatId) {
             chatId = createNewChat();
         }
 
-        const existingMessages = currentChat?.messages || [];
+        const existingMessages =
+            currentChat?.messages || [];
 
         const updatedMessages = [
             ...existingMessages,
@@ -39,28 +40,42 @@ export default function useChat() {
         try {
 
             const res = await api.post("/chat", {
+
+                conversation_id: String(chatId),
+
                 message: question,
+
             });
 
             updateMessages(chatId, [
+
                 ...updatedMessages,
+
                 {
                     role: "assistant",
                     content: res.data.answer,
                 },
+
             ]);
 
-        } catch {
+        }
+
+        catch {
 
             updateMessages(chatId, [
+
                 ...updatedMessages,
+
                 {
                     role: "assistant",
                     content: "Unable to connect to backend.",
                 },
+
             ]);
 
-        } finally {
+        }
+
+        finally {
 
             setLoading(false);
 
@@ -69,8 +84,11 @@ export default function useChat() {
     }
 
     return {
+
         loading,
+
         sendMessage,
+
     };
 
 }

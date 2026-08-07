@@ -24,6 +24,7 @@ app.add_middleware(
 
 
 class ChatRequest(BaseModel):
+    conversation_id: str
     message: str
 
 
