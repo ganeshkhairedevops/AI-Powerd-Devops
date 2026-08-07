@@ -1,8 +1,12 @@
+
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from agent import agent
+
+# from services.chat_service import chat_service
 
 app = FastAPI(
     title="DevOps AI Agent API",
@@ -20,6 +24,7 @@ app.add_middleware(
 
 
 class ChatRequest(BaseModel):
+    conversation_id: str
     message: str
 
 
@@ -38,9 +43,11 @@ def health():
         "agent": "online"
     }
 
-
 @app.post("/chat")
 def chat(request: ChatRequest):
+
+    print("Conversation:", request.conversation_id)
+    print("Question:", request.message)
 
     response = agent.invoke(
         {
@@ -51,10 +58,45 @@ def chat(request: ChatRequest):
     )
 
     answer = response["messages"][-1].content
-    
+
     return {
         "success": True,
+        "conversation_id": request.conversation_id,
         "question": request.message,
-        "answer": answer
+        "answer": answer,
     }
+
+
+# @app.post("/chat")
+# def chat(request: ChatRequest):
+
+#     response = chat_service.ask(request.message)
+
+#     return {
+#         "success": response.success,
+#         "question": request.message,
+#         "answer": response.answer,
+#         "tool": response.tool,
+#         "command": response.command,
+#         "execution_time": response.execution_time,
+#     }
+
+# @app.post("/chat")
+# def chat(request: ChatRequest):
+
+#     response = agent.invoke(
+#         {
+#             "messages": [
+#                 ("user", request.message)
+#             ]
+#         }
+#     )
+
+#     answer = response["messages"][-1].content
+    
+#     return {
+#         "success": True,
+#         "question": request.message,
+#         "answer": answer
+#     }
 
