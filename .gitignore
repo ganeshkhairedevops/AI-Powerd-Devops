@@ -26,3 +26,5 @@ env/
 # agents
 .agents/
 .node_modules/
+node_modules/
+Application/node_modules/
