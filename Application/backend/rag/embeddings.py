@@ -7,25 +7,21 @@ nomic-embed-text model.
 
 from langchain_ollama import OllamaEmbeddings
 
+from config import OLLAMA_EMBED_MODEL
+
 
 class EmbeddingService:
 
     def __init__(self):
 
         self.embeddings = OllamaEmbeddings(
-            model="nomic-embed-text",
+            model=OLLAMA_EMBED_MODEL,
         )
 
-    def embed_documents(
-        self,
-        documents,
-    ):
+    def embed_documents(self, documents):
         return self.embeddings.embed_documents(documents)
 
-    def embed_query(
-        self,
-        query,
-    ):
+    def embed_query(self, query):
         return self.embeddings.embed_query(query)
 
 

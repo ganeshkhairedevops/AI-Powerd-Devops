@@ -26,3 +26,15 @@ env/
 # agents
 .agents/
 .node_modules/
+
+# ChromaDB
+chroma_db/
+backend/chroma_db/
+
+# Uploads (optional)
+uploads/
+backend/uploads/
+
+# Logs
+logs/
+backend/logs/
