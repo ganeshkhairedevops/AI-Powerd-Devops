@@ -1,19 +1,7 @@
 """
 RAG Service
 
-Coordinates the complete RAG pipeline:
-
-File
-    ?
-Loader
-    ?
-Splitter
-    ?
-ChromaDB
-    ?
-Retriever
-    ?
-Relevant Context
+Coordinates document ingestion and retrieval.
 """
 
 from pathlib import Path
@@ -27,15 +15,6 @@ from rag.retriever import retriever
 class RAGService:
 
     def ingest_file(self, filepath: str):
-        """
-        Load, split, and store a document in ChromaDB.
-
-        Args:
-            filepath: Path to the document.
-
-        Returns:
-            Dictionary containing ingestion information.
-        """
 
         path = Path(filepath)
 
@@ -53,7 +32,7 @@ class RAGService:
                 "message": "No content found in document.",
             }
 
-        # Store chunks in ChromaDB
+        # Store document chunks
         vector_store.add_documents(chunks)
 
         return {
@@ -64,15 +43,6 @@ class RAGService:
         }
 
     def retrieve_context(self, query: str) -> str:
-        """
-        Retrieve relevant document chunks for a question.
-
-        Args:
-            query: User's question.
-
-        Returns:
-            Relevant document context as text.
-        """
 
         documents = retriever.retrieve(query)
 

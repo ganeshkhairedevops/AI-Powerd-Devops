@@ -1,4 +1,6 @@
-from fastapi import FastAPI
+from pathlib import Path
+
+from fastapi import FastAPI, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -12,6 +14,12 @@ app = FastAPI(
     version="1.0.0",
 )
 
+UPLOAD_DIR = Path("uploads")
+
+UPLOAD_DIR.mkdir(
+    parents=True,
+    exist_ok=True,
+)
 
 # CORS
 
@@ -154,3 +162,41 @@ def chat(request: ChatRequest):
         "answer": answer,
         "rag_used": bool(rag_context),
     }
+
+@app.post("/upload")
+async def upload_file(
+    file: UploadFile = File(...),
+):
+
+    if not file.filename:
+        return {
+            "success": False,
+            "message": "No file provided.",
+        }
+
+    file_path = UPLOAD_DIR / file.filename
+
+    content = await file.read()
+
+    file_path.write_bytes(content)
+
+    try:
+
+        result = rag_service.ingest_file(
+            str(file_path)
+        )
+
+        return {
+            "success": result["success"],
+            "filename": result["filename"],
+            "chunks": result["chunks"],
+            "message": result["message"],
+        }
+
+    except Exception as exc:
+
+        return {
+            "success": False,
+            "filename": file.filename,
+            "message": str(exc),
+        }
