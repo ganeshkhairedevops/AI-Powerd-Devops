@@ -52,3 +52,12 @@ Application/backend/uploads/
 # Logs
 logs/
 Application/backend/logs/
+
+backend/uploads/*
+!backend/uploads/.gitkeep
+backend/chroma_db/*
+!backend/chroma_db/.gitkeep
+Application/backend/chroma_db/*
+!Application/backend/chroma_db/.gitkeep
+Application/backend/uploads/*
+!Application/backend/uploads/.gitkeep
