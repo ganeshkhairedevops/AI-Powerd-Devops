@@ -5,6 +5,7 @@ import Message from "./Message";
 import PromptBox from "./PromptBox";
 import ConversationHeader from "./ConversationHeader";
 import SuggestionCards from "./chat/SuggestionCards";
+import FileUpload from "./FileUpload";
 
 import useChat from "../hooks/useChat";
 import { useChatContext } from "../context/ChatContext";
@@ -79,6 +80,7 @@ function ChatWindow() {
       </div>
 
       {/* Prompt Box */}
+      <FileUpload />
       <PromptBox
         onSend={sendMessage}
         loading={loading}
