@@ -1,7 +1,12 @@
+from pathlib import Path
+
+from config import UPLOAD_FOLDER
 from rag.loader import loader
 from rag.splitter import splitter
 
-content = loader.load("uploads/test.yaml")
+filepath = Path(UPLOAD_FOLDER) / "test.yaml"
+
+content = loader.load(str(filepath))
 
 chunks = splitter.split(content)
 

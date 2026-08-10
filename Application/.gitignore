@@ -38,3 +38,8 @@ backend/uploads/
 # Logs
 logs/
 backend/logs/
+backend/uploads/*
+!backend/uploads/.gitkeep
+
+backend/chroma_db/*
+!backend/chroma_db/.gitkeep
