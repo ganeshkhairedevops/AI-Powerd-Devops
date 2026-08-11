@@ -14,6 +14,11 @@ app = FastAPI(
     version="1.0.0",
 )
 
+
+# =====================================================
+# Upload Directory
+# =====================================================
+
 UPLOAD_DIR = Path("uploads")
 
 UPLOAD_DIR.mkdir(
@@ -21,7 +26,10 @@ UPLOAD_DIR.mkdir(
     exist_ok=True,
 )
 
+
+# =====================================================
 # CORS
+# =====================================================
 
 app.add_middleware(
     CORSMiddleware,
@@ -31,14 +39,19 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+# =====================================================
 # Request Models
+# =====================================================
 
 class ChatRequest(BaseModel):
     conversation_id: str
     message: str
 
 
+# =====================================================
 # Root
+# =====================================================
 
 @app.get("/")
 def root():
@@ -49,7 +62,9 @@ def root():
     }
 
 
+# =====================================================
 # Health
+# =====================================================
 
 @app.get("/health")
 def health():
@@ -60,7 +75,9 @@ def health():
     }
 
 
+# =====================================================
 # Chat
+# =====================================================
 
 @app.post("/chat")
 def chat(request: ChatRequest):
@@ -71,7 +88,7 @@ def chat(request: ChatRequest):
     print("=" * 60)
 
     # -------------------------------------------------
-    # Save user message to memory
+    # Save user message
     # -------------------------------------------------
 
     memory.add_message(
@@ -88,9 +105,11 @@ def chat(request: ChatRequest):
         request.conversation_id
     )
 
+    previous_messages = history[:-1]
+
     messages = []
 
-    for msg in history:
+    for msg in previous_messages:
 
         messages.append(
             (
@@ -108,30 +127,50 @@ def chat(request: ChatRequest):
     )
 
     # -------------------------------------------------
-    # Add RAG context if available
+    # Try answering directly from RAG
     # -------------------------------------------------
 
     if rag_context:
 
-        rag_message = (
-            "Relevant infrastructure/document context "
-            "retrieved from the user's uploaded files:\n\n"
-            f"{rag_context}\n\n"
-            "Use this context when it is relevant to "
-            "answering the user's question."
+        rag_answer = rag_service.answer_from_context(
+            question=request.message,
+            context=rag_context,
         )
 
-        messages.insert(
-            max(len(messages) - 1, 0),
-            (
-                "system",
-                rag_message,
-            ),
-        )
+        # -------------------------------------------------
+        # RAG successfully answered
+        # -------------------------------------------------
+
+        if rag_answer != "NOT_ENOUGH_CONTEXT":
+
+            answer = rag_answer
+
+            memory.add_message(
+                request.conversation_id,
+                "assistant",
+                answer,
+            )
+
+            return {
+                "success": True,
+                "conversation_id": request.conversation_id,
+                "question": request.message,
+                "answer": answer,
+                "rag_used": True,
+                "agent_used": False,
+            }
 
     # -------------------------------------------------
-    # Invoke Agent
+    # RAG could not answer
+    # Use normal DevOps Agent
     # -------------------------------------------------
+
+    messages.append(
+        (
+            "user",
+            request.message,
+        )
+    )
 
     response = agent.invoke(
         {
@@ -160,8 +199,13 @@ def chat(request: ChatRequest):
         "conversation_id": request.conversation_id,
         "question": request.message,
         "answer": answer,
-        "rag_used": bool(rag_context),
+        "rag_used": False,
+        "agent_used": True,
     }
+
+# =====================================================
+# File Upload
+# =====================================================
 
 @app.post("/upload")
 async def upload_file(
@@ -169,16 +213,27 @@ async def upload_file(
 ):
 
     if not file.filename:
+
         return {
             "success": False,
             "message": "No file provided.",
         }
+
+
+    # -------------------------------------------------
+    # Save uploaded file
+    # -------------------------------------------------
 
     file_path = UPLOAD_DIR / file.filename
 
     content = await file.read()
 
     file_path.write_bytes(content)
+
+
+    # -------------------------------------------------
+    # Ingest document into RAG
+    # -------------------------------------------------
 
     try:
 
@@ -192,6 +247,7 @@ async def upload_file(
             "chunks": result["chunks"],
             "message": result["message"],
         }
+
 
     except Exception as exc:
 
