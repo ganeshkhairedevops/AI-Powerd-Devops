@@ -3,7 +3,7 @@ import { useRef, useState } from "react";
 import api from "../services/api";
 
 
-function FileUpload() {
+function FileUpload({ onUploadSuccess }) {
 
     const fileInputRef = useRef(null);
 
@@ -11,13 +11,14 @@ function FileUpload() {
         currentChatId,
     } = useChatContext();
 
-
     const [uploading, setUploading] = useState(false);
-
     const [message, setMessage] = useState("");
-
     const [error, setError] = useState("");
 
+
+    // =====================================================
+    // Upload File
+    // =====================================================
 
     async function handleFile(file) {
 
@@ -26,9 +27,9 @@ function FileUpload() {
         }
 
 
-        // ---------------------------------------------
+        // -------------------------------------------------
         // Make sure a chat is selected
-        // ---------------------------------------------
+        // -------------------------------------------------
 
         if (!currentChatId) {
 
@@ -41,15 +42,13 @@ function FileUpload() {
 
 
         setUploading(true);
-
         setMessage("");
-
         setError("");
 
 
-        // ---------------------------------------------
-        // Create multipart form data
-        // ---------------------------------------------
+        // -------------------------------------------------
+        // Create FormData
+        // -------------------------------------------------
 
         const formData = new FormData();
 
@@ -64,6 +63,10 @@ function FileUpload() {
         );
 
 
+        // -------------------------------------------------
+        // Upload
+        // -------------------------------------------------
+
         try {
 
             const response = await api.post(
@@ -77,11 +80,25 @@ function FileUpload() {
             );
 
 
+            // -------------------------------------------------
+            // Upload successful
+            // -------------------------------------------------
+
             if (response.data.success) {
 
                 setMessage(
                     `${response.data.filename} uploaded successfully (${response.data.chunks} chunks)`
                 );
+
+
+                // Tell ChatWindow that upload completed.
+                // DocumentList will refresh automatically.
+
+                if (onUploadSuccess) {
+
+                    onUploadSuccess();
+
+                }
 
             } else {
 
@@ -109,17 +126,23 @@ function FileUpload() {
 
             setUploading(false);
 
-            // Reset file input so the same file
-            // can be selected again if needed.
+
+            // Allow selecting the same file again.
 
             if (fileInputRef.current) {
 
                 fileInputRef.current.value = "";
 
             }
+
         }
+
     }
 
+
+    // =====================================================
+    // File Selection
+    // =====================================================
 
     function handleFileChange(event) {
 
@@ -127,8 +150,13 @@ function FileUpload() {
             event.target.files?.[0];
 
         handleFile(file);
+
     }
 
+
+    // =====================================================
+    // Open File Picker
+    // =====================================================
 
     function openFilePicker() {
 
@@ -141,17 +169,23 @@ function FileUpload() {
             return;
         }
 
+
+        setError("");
+
         fileInputRef.current?.click();
+
     }
 
+
+    // =====================================================
+    // Render
+    // =====================================================
 
     return (
 
         <div className="px-6 pb-3">
 
-            {/* ---------------------------------------
-                Hidden File Input
-            ---------------------------------------- */}
+            {/* Hidden file input */}
 
             <input
                 ref={fileInputRef}
@@ -161,14 +195,13 @@ function FileUpload() {
             />
 
 
-            {/* ---------------------------------------
-                Upload Area
-            ---------------------------------------- */}
+            {/* Upload area */}
 
             <div
                 onClick={openFilePicker}
                 className="
-                    border border-dashed
+                    border
+                    border-dashed
                     border-slate-700
                     rounded-xl
                     p-4
@@ -191,7 +224,7 @@ function FileUpload() {
                     <>
 
                         <p className="text-gray-300">
-                            ?? Upload DevOps File
+                            Upload DevOps File
                         </p>
 
                         <p className="text-xs text-gray-500 mt-1">
@@ -206,9 +239,7 @@ function FileUpload() {
             </div>
 
 
-            {/* ---------------------------------------
-                Success Message
-            ---------------------------------------- */}
+            {/* Success message */}
 
             {message && (
 
@@ -219,9 +250,7 @@ function FileUpload() {
             )}
 
 
-            {/* ---------------------------------------
-                Error Message
-            ---------------------------------------- */}
+            {/* Error message */}
 
             {error && (
 
@@ -234,6 +263,7 @@ function FileUpload() {
         </div>
 
     );
+
 }
 
 

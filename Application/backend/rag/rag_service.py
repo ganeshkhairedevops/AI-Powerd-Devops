@@ -1,7 +1,16 @@
 """
 RAG Service
 
-Coordinates document ingestion and retrieval.
+Coordinates:
+
+- Document loading
+- Document splitting
+- Embeddings
+- ChromaDB storage
+- Retrieval
+- Document answering
+- Document listing
+- Document deletion
 
 Documents are isolated by conversation_id.
 """
@@ -18,11 +27,18 @@ from rag.retriever import retriever
 
 class RAGService:
 
+    # =================================================
+    # Ingest Document
+    # =================================================
+
     def ingest_file(
         self,
         filepath: str,
         conversation_id: str,
     ):
+        """
+        Load, split, embed, and store a document.
+        """
 
         path = Path(filepath)
 
@@ -48,6 +64,7 @@ class RAGService:
                 "success": False,
                 "filename": path.name,
                 "chunks": 0,
+                "conversation_id": conversation_id,
                 "message": "No content found in document.",
             }
 
@@ -69,11 +86,19 @@ class RAGService:
             "message": "Document successfully indexed.",
         }
 
+    # =================================================
+    # Retrieve Context
+    # =================================================
+
     def retrieve_context(
         self,
         query: str,
         conversation_id: str,
     ) -> str:
+        """
+        Retrieve relevant context only from the
+        specified conversation.
+        """
 
         documents = retriever.retrieve(
             query=query,
@@ -105,11 +130,19 @@ class RAGService:
             context_parts
         )
 
+    # =================================================
+    # Answer From Context
+    # =================================================
+
     def answer_from_context(
         self,
         question: str,
         context: str,
     ) -> str:
+        """
+        Answer the question using only
+        retrieved document context.
+        """
 
         prompt = f"""
 You are a DevOps document analysis assistant.
@@ -171,5 +204,43 @@ Answer:
 
         return answer
 
+    # =================================================
+    # List Documents
+    # =================================================
+
+    def list_documents(
+        self,
+        conversation_id: str,
+    ):
+        """
+        List documents belonging to a conversation.
+        """
+
+        return vector_store.list_documents(
+            conversation_id=conversation_id,
+        )
+
+    # =================================================
+    # Delete Document
+    # =================================================
+
+    def delete_document(
+        self,
+        conversation_id: str,
+        filename: str,
+    ):
+        """
+        Delete a document from ChromaDB.
+        """
+
+        return vector_store.delete_document(
+            conversation_id=conversation_id,
+            filename=filename,
+        )
+
+
+# =====================================================
+# Singleton
+# =====================================================
 
 rag_service = RAGService()

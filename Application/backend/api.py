@@ -1,7 +1,14 @@
 from pathlib import Path
 
-from fastapi import FastAPI, File, Form, UploadFile
+from fastapi import (
+    FastAPI,
+    File,
+    Form,
+    UploadFile,
+)
+
 from fastapi.middleware.cors import CORSMiddleware
+
 from pydantic import BaseModel
 
 from agent import agent
@@ -45,6 +52,7 @@ app.add_middleware(
 # =====================================================
 
 class ChatRequest(BaseModel):
+
     conversation_id: str
     message: str
 
@@ -80,11 +88,22 @@ def health():
 # =====================================================
 
 @app.post("/chat")
-def chat(request: ChatRequest):
+def chat(
+    request: ChatRequest,
+):
 
     print("=" * 60)
-    print("Conversation:", request.conversation_id)
-    print("Question:", request.message)
+
+    print(
+        "Conversation:",
+        request.conversation_id,
+    )
+
+    print(
+        "Question:",
+        request.message,
+    )
+
     print("=" * 60)
 
 
@@ -106,9 +125,6 @@ def chat(request: ChatRequest):
     history = memory.get_messages(
         request.conversation_id
     )
-
-    # Current user message is already in memory.
-    # We add the current question separately below.
 
     previous_messages = history[:-1]
 
@@ -135,7 +151,7 @@ def chat(request: ChatRequest):
 
 
     # -------------------------------------------------
-    # Try answering directly from RAG
+    # Try RAG first
     # -------------------------------------------------
 
     if rag_context:
@@ -194,7 +210,9 @@ def chat(request: ChatRequest):
     # Get answer
     # -------------------------------------------------
 
-    answer = response["messages"][-1].content
+    answer = response[
+        "messages"
+    ][-1].content
 
 
     # -------------------------------------------------
@@ -257,11 +275,12 @@ async def upload_file(
 
 
     # -------------------------------------------------
-    # Create conversation upload directory
+    # Create conversation directory
     # -------------------------------------------------
 
     conversation_dir = (
-        UPLOAD_DIR / conversation_id
+        UPLOAD_DIR /
+        conversation_id
     )
 
     conversation_dir.mkdir(
@@ -271,12 +290,16 @@ async def upload_file(
 
 
     # -------------------------------------------------
-    # Create file path
+    # Secure filename
     # -------------------------------------------------
+
+    filename = Path(
+        file.filename
+    ).name
 
     file_path = (
         conversation_dir /
-        Path(file.filename).name
+        filename
     )
 
 
@@ -286,7 +309,9 @@ async def upload_file(
 
     content = await file.read()
 
-    file_path.write_bytes(content)
+    file_path.write_bytes(
+        content
+    )
 
 
     # -------------------------------------------------
@@ -314,7 +339,93 @@ async def upload_file(
 
         return {
             "success": False,
-            "filename": file.filename,
+            "filename": filename,
             "conversation_id": conversation_id,
             "message": str(exc),
         }
+
+
+# =====================================================
+# List Documents
+# =====================================================
+
+@app.get(
+    "/documents/{conversation_id}"
+)
+def list_documents(
+    conversation_id: str,
+):
+
+    documents = rag_service.list_documents(
+        conversation_id=conversation_id,
+    )
+
+    return {
+        "success": True,
+        "conversation_id": conversation_id,
+        "documents": documents,
+    }
+
+
+# =====================================================
+# Delete Document
+# =====================================================
+
+@app.delete(
+    "/documents/{conversation_id}/{filename}"
+)
+def delete_document(
+    conversation_id: str,
+    filename: str,
+):
+
+    # -------------------------------------------------
+    # Delete from ChromaDB
+    # -------------------------------------------------
+
+    deleted = rag_service.delete_document(
+        conversation_id=conversation_id,
+        filename=filename,
+    )
+
+
+    if not deleted:
+
+        return {
+            "success": False,
+            "conversation_id": conversation_id,
+            "filename": filename,
+            "message": "Document not found.",
+        }
+
+
+    # -------------------------------------------------
+    # Delete physical file
+    # -------------------------------------------------
+
+    safe_filename = Path(
+        filename
+    ).name
+
+    file_path = (
+        UPLOAD_DIR
+        / conversation_id
+        / safe_filename
+    )
+
+
+    if file_path.exists():
+
+        file_path.unlink()
+
+
+    # -------------------------------------------------
+    # Response
+    # -------------------------------------------------
+
+    return {
+        "success": True,
+        "conversation_id": conversation_id,
+        "filename": safe_filename,
+        "message": "Document deleted successfully.",
+    }

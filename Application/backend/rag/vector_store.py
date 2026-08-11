@@ -1,7 +1,8 @@
 """
 Vector Store
 
-Stores and retrieves document chunks using ChromaDB.
+Stores, searches, lists, and deletes document chunks
+using ChromaDB.
 
 Documents are isolated by conversation_id.
 """
@@ -23,6 +24,10 @@ class VectorStore:
             embedding_function=embedding_service.embeddings,
         )
 
+    # =================================================
+    # Add Documents
+    # =================================================
+
     def add_documents(
         self,
         documents,
@@ -32,7 +37,8 @@ class VectorStore:
         """
         Add document chunks to ChromaDB.
 
-        Each chunk receives metadata containing:
+        Metadata stored for every chunk:
+
         - conversation_id
         - filename
         - chunk_index
@@ -44,9 +50,7 @@ class VectorStore:
         ids = []
         metadatas = []
 
-        for index, document in enumerate(
-            documents
-        ):
+        for index, document in enumerate(documents):
 
             document_id = hashlib.sha256(
                 (
@@ -73,6 +77,10 @@ class VectorStore:
             metadatas=metadatas,
         )
 
+    # =================================================
+    # Search Documents
+    # =================================================
+
     def search(
         self,
         query: str,
@@ -92,5 +100,102 @@ class VectorStore:
             },
         )
 
+    # =================================================
+    # List Documents
+    # =================================================
+
+    def list_documents(
+        self,
+        conversation_id: str,
+    ):
+        """
+        Return all uploaded documents belonging
+        to a specific conversation.
+        """
+
+        results = self.db.get(
+            where={
+                "conversation_id": conversation_id
+            }
+        )
+
+        documents = {}
+
+        metadatas = results.get(
+            "metadatas",
+            [],
+        )
+
+        for metadata in metadatas:
+
+            if not metadata:
+                continue
+
+            filename = metadata.get(
+                "filename",
+                "unknown",
+            )
+
+            documents.setdefault(
+                filename,
+                0,
+            )
+
+            documents[filename] += 1
+
+        return [
+            {
+                "filename": filename,
+                "chunks": chunks,
+            }
+            for filename, chunks
+            in documents.items()
+        ]
+
+    # =================================================
+    # Delete Document
+    # =================================================
+
+    def delete_document(
+        self,
+        conversation_id: str,
+        filename: str,
+    ):
+        """
+        Delete all chunks belonging to a file
+        inside a specific conversation.
+        """
+
+        results = self.db.get(
+            where={
+                "$and": [
+                    {
+                        "conversation_id": conversation_id
+                    },
+                    {
+                        "filename": filename
+                    },
+                ]
+            }
+        )
+
+        ids = results.get(
+            "ids",
+            [],
+        )
+
+        if not ids:
+            return False
+
+        self.db.delete(
+            ids=ids
+        )
+
+        return True
+
+
+# =====================================================
+# Singleton
+# =====================================================
 
 vector_store = VectorStore()
