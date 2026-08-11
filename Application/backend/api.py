@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from fastapi import FastAPI, File, UploadFile
+from fastapi import FastAPI, File, Form, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -87,6 +87,7 @@ def chat(request: ChatRequest):
     print("Question:", request.message)
     print("=" * 60)
 
+
     # -------------------------------------------------
     # Save user message
     # -------------------------------------------------
@@ -97,6 +98,7 @@ def chat(request: ChatRequest):
         request.message,
     )
 
+
     # -------------------------------------------------
     # Retrieve conversation history
     # -------------------------------------------------
@@ -104,6 +106,9 @@ def chat(request: ChatRequest):
     history = memory.get_messages(
         request.conversation_id
     )
+
+    # Current user message is already in memory.
+    # We add the current question separately below.
 
     previous_messages = history[:-1]
 
@@ -118,13 +123,16 @@ def chat(request: ChatRequest):
             )
         )
 
+
     # -------------------------------------------------
-    # Retrieve RAG context
+    # Retrieve conversation-specific RAG context
     # -------------------------------------------------
 
     rag_context = rag_service.retrieve_context(
-        request.message
+        query=request.message,
+        conversation_id=request.conversation_id,
     )
+
 
     # -------------------------------------------------
     # Try answering directly from RAG
@@ -136,6 +144,7 @@ def chat(request: ChatRequest):
             question=request.message,
             context=rag_context,
         )
+
 
         # -------------------------------------------------
         # RAG successfully answered
@@ -160,6 +169,7 @@ def chat(request: ChatRequest):
                 "agent_used": False,
             }
 
+
     # -------------------------------------------------
     # RAG could not answer
     # Use normal DevOps Agent
@@ -172,13 +182,20 @@ def chat(request: ChatRequest):
         )
     )
 
+
     response = agent.invoke(
         {
             "messages": messages,
         }
     )
 
+
+    # -------------------------------------------------
+    # Get answer
+    # -------------------------------------------------
+
     answer = response["messages"][-1].content
+
 
     # -------------------------------------------------
     # Save assistant response
@@ -189,6 +206,7 @@ def chat(request: ChatRequest):
         "assistant",
         answer,
     )
+
 
     # -------------------------------------------------
     # Response
@@ -203,14 +221,32 @@ def chat(request: ChatRequest):
         "agent_used": True,
     }
 
+
 # =====================================================
 # File Upload
 # =====================================================
 
 @app.post("/upload")
 async def upload_file(
+    conversation_id: str = Form(...),
     file: UploadFile = File(...),
 ):
+
+    # -------------------------------------------------
+    # Validate conversation
+    # -------------------------------------------------
+
+    if not conversation_id:
+
+        return {
+            "success": False,
+            "message": "Conversation ID is required.",
+        }
+
+
+    # -------------------------------------------------
+    # Validate filename
+    # -------------------------------------------------
 
     if not file.filename:
 
@@ -221,10 +257,32 @@ async def upload_file(
 
 
     # -------------------------------------------------
-    # Save uploaded file
+    # Create conversation upload directory
     # -------------------------------------------------
 
-    file_path = UPLOAD_DIR / file.filename
+    conversation_dir = (
+        UPLOAD_DIR / conversation_id
+    )
+
+    conversation_dir.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+
+
+    # -------------------------------------------------
+    # Create file path
+    # -------------------------------------------------
+
+    file_path = (
+        conversation_dir /
+        Path(file.filename).name
+    )
+
+
+    # -------------------------------------------------
+    # Save uploaded file
+    # -------------------------------------------------
 
     content = await file.read()
 
@@ -238,13 +296,16 @@ async def upload_file(
     try:
 
         result = rag_service.ingest_file(
-            str(file_path)
+            filepath=str(file_path),
+            conversation_id=conversation_id,
         )
+
 
         return {
             "success": result["success"],
             "filename": result["filename"],
             "chunks": result["chunks"],
+            "conversation_id": conversation_id,
             "message": result["message"],
         }
 
@@ -254,5 +315,6 @@ async def upload_file(
         return {
             "success": False,
             "filename": file.filename,
+            "conversation_id": conversation_id,
             "message": str(exc),
         }

@@ -1,8 +1,9 @@
 """
 RAG Service
 
-Coordinates document ingestion, retrieval,
-and document-based question answering.
+Coordinates document ingestion and retrieval.
+
+Documents are isolated by conversation_id.
 """
 
 from pathlib import Path
@@ -17,17 +18,32 @@ from rag.retriever import retriever
 
 class RAGService:
 
-    def ingest_file(self, filepath: str):
+    def ingest_file(
+        self,
+        filepath: str,
+        conversation_id: str,
+    ):
 
         path = Path(filepath)
 
+        # -------------------------------------------------
         # Load document
-        content = loader.load(str(path))
+        # -------------------------------------------------
 
+        content = loader.load(
+            str(path)
+        )
+
+        # -------------------------------------------------
         # Split document
-        chunks = splitter.split(content)
+        # -------------------------------------------------
+
+        chunks = splitter.split(
+            content
+        )
 
         if not chunks:
+
             return {
                 "success": False,
                 "filename": path.name,
@@ -35,19 +51,34 @@ class RAGService:
                 "message": "No content found in document.",
             }
 
+        # -------------------------------------------------
         # Store chunks
-        vector_store.add_documents(chunks)
+        # -------------------------------------------------
+
+        vector_store.add_documents(
+            documents=chunks,
+            conversation_id=conversation_id,
+            filename=path.name,
+        )
 
         return {
             "success": True,
             "filename": path.name,
             "chunks": len(chunks),
+            "conversation_id": conversation_id,
             "message": "Document successfully indexed.",
         }
 
-    def retrieve_context(self, query: str) -> str:
+    def retrieve_context(
+        self,
+        query: str,
+        conversation_id: str,
+    ) -> str:
 
-        documents = retriever.retrieve(query)
+        documents = retriever.retrieve(
+            query=query,
+            conversation_id=conversation_id,
+        )
 
         if not documents:
             return ""
@@ -59,25 +90,26 @@ class RAGService:
             start=1,
         ):
 
+            filename = document.metadata.get(
+                "filename",
+                "unknown",
+            )
+
             context_parts.append(
-                f"--- Document Chunk {index} ---\n"
+                f"--- {filename} | "
+                f"Document Chunk {index} ---\n"
                 f"{document.page_content}"
             )
 
-        return "\n\n".join(context_parts)
+        return "\n\n".join(
+            context_parts
+        )
 
     def answer_from_context(
         self,
         question: str,
         context: str,
     ) -> str:
-        """
-        Ask the LLM to answer strictly from
-        retrieved document context.
-
-        If the context is insufficient, return
-        NOT_ENOUGH_CONTEXT.
-        """
 
         prompt = f"""
 You are a DevOps document analysis assistant.
@@ -120,12 +152,22 @@ NOT_ENOUGH_CONTEXT
 Answer:
 """
 
-        response = llm.invoke(prompt)
+        response = llm.invoke(
+            prompt
+        )
 
-        if hasattr(response, "content"):
+        if hasattr(
+            response,
+            "content",
+        ):
+
             answer = response.content.strip()
+
         else:
-            answer = str(response).strip()
+
+            answer = str(
+                response
+            ).strip()
 
         return answer
 
