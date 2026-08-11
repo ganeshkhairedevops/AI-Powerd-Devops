@@ -25,3 +25,8 @@ dist-ssr
 .env.local
 .env
 build/
+
+backend/chroma_db/*
+!backend/chroma_db/.gitkeep
+backend/uploads/*
+!backend/uploads/.gitkeep

@@ -1,6 +1,15 @@
-# Ollama LLM configuration
-
 from langchain_ollama import ChatOllama
+
+from config import OLLAMA_CHAT_MODEL
+
+llm = ChatOllama(
+    model=OLLAMA_CHAT_MODEL,
+    temperature=0,
+)
+
+# Ollama LLM configuration this is manual we cang change module
+
+# from langchain_ollama import ChatOllama
 
 # llm = ChatOllama(
 #     model="qwen3-coder:30b",
@@ -14,7 +23,7 @@ from langchain_ollama import ChatOllama
 #     num_ctx=2048,
 # )
 
-llm = ChatOllama(
-    model="llama3.1:8b",
-    temperature=0,
-)
+# llm = ChatOllama(
+#     model="llama3.1:8b",
+#     temperature=0,
+# )

@@ -28,3 +28,39 @@ env/
 .node_modules/
 node_modules/
 Application/node_modules/
+
+# ChromaDB
+chroma_db/
+backend/chroma_db/
+
+# Uploads (optional)
+uploads/
+backend/uploads/
+
+# Logs
+logs/
+backend/logs/
+
+# ChromaDB
+Application/backend/chroma_db/
+backend/chroma_db/
+
+# Uploads (optional)
+uploads/
+Application/backend/uploads/
+
+# Logs
+logs/
+Application/backend/logs/
+
+backend/uploads/*
+!backend/uploads/.gitkeep
+backend/chroma_db/*
+!backend/chroma_db/.gitkeep
+Application/backend/chroma_db/*
+!Application/backend/chroma_db/.gitkeep
+Application/backend/uploads/*
+!Application/backend/uploads/.gitkeep
+
+Application/backend/chroma_db/*
+!Application/backend/chroma_db/.gitkeep

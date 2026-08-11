@@ -8,6 +8,7 @@ __pycache__/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+dist/
 
 # Virtual environments
 venv/
@@ -26,3 +27,20 @@ env/
 # agents
 .agents/
 .node_modules/
+
+# ChromaDB
+chroma_db/
+backend/chroma_db/
+
+# Uploads (optional)
+uploads/
+backend/uploads/
+
+# Logs
+logs/
+backend/logs/
+backend/uploads/*
+!backend/uploads/.gitkeep
+
+backend/chroma_db/*
+!backend/chroma_db/.gitkeep

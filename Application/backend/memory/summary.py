@@ -1,32 +1,18 @@
 """
-Conversation Summarizer
-"""
+Conversation Summary
 
-from llm import llm
+This will summarize long conversations.
+(Current implementation is a placeholder.)
+"""
 
 
 class ConversationSummary:
 
     def summarize(self, messages):
 
-        prompt = f"""
-Summarize this DevOps conversation.
+        # We'll replace this with an LLM call later.
 
-Keep:
-
-- Important commands
-- Problems discussed
-- Solutions
-- Current context
-
-Conversation:
-
-{messages}
-"""
-
-        response = llm.invoke(prompt)
-
-        return response.content
+        return messages
 
 
 summary = ConversationSummary()
