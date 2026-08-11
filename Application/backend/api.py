@@ -1,20 +1,37 @@
+"""
+DevOps AI Agent API
+
+Handles:
+
+- Chat
+- Memory
+- Intelligent question routing
+- RAG document retrieval
+- DevOps agent execution
+- File uploads
+"""
+
 from pathlib import Path
 
-from fastapi import (
-    FastAPI,
-    File,
-    Form,
-    UploadFile,
-)
-
+from fastapi import FastAPI, File, Form, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-
 from pydantic import BaseModel
 
 from agent import agent
+from llm import llm
 from memory import memory
+
 from rag.rag_service import rag_service
 
+from services.question_router import (
+    question_router,
+    QuestionRoute,
+)
+
+
+# =====================================================
+# Application
+# =====================================================
 
 app = FastAPI(
     title="DevOps AI Agent API",
@@ -54,6 +71,7 @@ app.add_middleware(
 class ChatRequest(BaseModel):
 
     conversation_id: str
+
     message: str
 
 
@@ -107,9 +125,9 @@ def chat(
     print("=" * 60)
 
 
-    # -------------------------------------------------
+    # =================================================
     # Save user message
-    # -------------------------------------------------
+    # =================================================
 
     memory.add_message(
         request.conversation_id,
@@ -118,17 +136,35 @@ def chat(
     )
 
 
-    # -------------------------------------------------
+    # =================================================
+    # Determine question route
+    # =================================================
+
+    route = question_router.route(
+        request.message
+    )
+
+
+    print(
+        "Question Route:",
+        route.value,
+    )
+
+
+    # =================================================
     # Retrieve conversation history
-    # -------------------------------------------------
+    # =================================================
 
     history = memory.get_messages(
         request.conversation_id
     )
 
+
     previous_messages = history[:-1]
 
+
     messages = []
+
 
     for msg in previous_messages:
 
@@ -140,56 +176,141 @@ def chat(
         )
 
 
-    # -------------------------------------------------
-    # Retrieve conversation-specific RAG context
-    # -------------------------------------------------
+    # =================================================
+    # RAG ROUTE
+    # =================================================
 
-    rag_context = rag_service.retrieve_context(
-        query=request.message,
-        conversation_id=request.conversation_id,
-    )
+    if route == QuestionRoute.RAG:
+
+        print(
+            "Processing through RAG..."
+        )
 
 
-    # -------------------------------------------------
-    # Try RAG first
-    # -------------------------------------------------
-
-    if rag_context:
-
-        rag_answer = rag_service.answer_from_context(
-            question=request.message,
-            context=rag_context,
+        rag_context = (
+            rag_service.retrieve_context(
+                query=request.message,
+                conversation_id=(
+                    request.conversation_id
+                ),
+            )
         )
 
 
         # -------------------------------------------------
-        # RAG successfully answered
+        # Context found
         # -------------------------------------------------
 
-        if rag_answer != "NOT_ENOUGH_CONTEXT":
+        if rag_context:
 
-            answer = rag_answer
-
-            memory.add_message(
-                request.conversation_id,
-                "assistant",
-                answer,
+            rag_answer = (
+                rag_service.answer_from_context(
+                    question=request.message,
+                    context=rag_context,
+                )
             )
 
-            return {
-                "success": True,
-                "conversation_id": request.conversation_id,
-                "question": request.message,
-                "answer": answer,
-                "rag_used": True,
-                "agent_used": False,
-            }
+
+            if (
+                rag_answer
+                != "NOT_ENOUGH_CONTEXT"
+            ):
+
+                answer = rag_answer
 
 
-    # -------------------------------------------------
-    # RAG could not answer
-    # Use normal DevOps Agent
-    # -------------------------------------------------
+                memory.add_message(
+                    request.conversation_id,
+                    "assistant",
+                    answer,
+                )
+
+
+                return {
+                    "success": True,
+                    "conversation_id": (
+                        request.conversation_id
+                    ),
+                    "question": (
+                        request.message
+                    ),
+                    "answer": answer,
+                    "route": "rag",
+                    "rag_used": True,
+                    "agent_used": False,
+                }
+
+
+        # -------------------------------------------------
+        # RAG doesn't have enough information
+        # -------------------------------------------------
+
+        print(
+            "RAG could not answer. "
+            "Falling back to agent."
+        )
+
+
+        route = QuestionRoute.AGENT
+
+
+    # =================================================
+    # GENERAL ROUTE
+    # =================================================
+
+    if route == QuestionRoute.GENERAL:
+
+        print(
+            "Processing general question..."
+        )
+
+
+        response = llm.invoke(
+            request.message
+        )
+
+
+        if hasattr(
+            response,
+            "content",
+        ):
+
+            answer = (
+                response.content.strip()
+            )
+
+        else:
+
+            answer = str(
+                response
+            ).strip()
+
+
+        memory.add_message(
+            request.conversation_id,
+            "assistant",
+            answer,
+        )
+
+
+        return {
+            "success": True,
+            "conversation_id": (
+                request.conversation_id
+            ),
+            "question": (
+                request.message
+            ),
+            "answer": answer,
+            "route": "general",
+            "rag_used": False,
+            "agent_used": False,
+        }
+
+
+    # =================================================
+    # AGENT ROUTE
+    # =================================================
 
     messages.append(
         (
@@ -206,18 +327,15 @@ def chat(
     )
 
 
-    # -------------------------------------------------
-    # Get answer
-    # -------------------------------------------------
-
-    answer = response[
-        "messages"
-    ][-1].content
+    answer = (
+        response["messages"][-1]
+        .content
+    )
 
 
-    # -------------------------------------------------
+    # =================================================
     # Save assistant response
-    # -------------------------------------------------
+    # =================================================
 
     memory.add_message(
         request.conversation_id,
@@ -226,15 +344,18 @@ def chat(
     )
 
 
-    # -------------------------------------------------
+    # =================================================
     # Response
-    # -------------------------------------------------
+    # =================================================
 
     return {
         "success": True,
-        "conversation_id": request.conversation_id,
+        "conversation_id": (
+            request.conversation_id
+        ),
         "question": request.message,
         "answer": answer,
+        "route": "agent",
         "rag_used": False,
         "agent_used": True,
     }
@@ -250,21 +371,9 @@ async def upload_file(
     file: UploadFile = File(...),
 ):
 
-    # -------------------------------------------------
-    # Validate conversation
-    # -------------------------------------------------
-
-    if not conversation_id:
-
-        return {
-            "success": False,
-            "message": "Conversation ID is required.",
-        }
-
-
-    # -------------------------------------------------
+    # =================================================
     # Validate filename
-    # -------------------------------------------------
+    # =================================================
 
     if not file.filename:
 
@@ -274,14 +383,15 @@ async def upload_file(
         }
 
 
-    # -------------------------------------------------
-    # Create conversation directory
-    # -------------------------------------------------
+    # =================================================
+    # Conversation Upload Directory
+    # =================================================
 
     conversation_dir = (
         UPLOAD_DIR /
-        conversation_id
+        str(conversation_id)
     )
+
 
     conversation_dir.mkdir(
         parents=True,
@@ -289,34 +399,27 @@ async def upload_file(
     )
 
 
-    # -------------------------------------------------
-    # Secure filename
-    # -------------------------------------------------
-
-    filename = Path(
-        file.filename
-    ).name
+    # =================================================
+    # Save uploaded file
+    # =================================================
 
     file_path = (
         conversation_dir /
-        filename
+        file.filename
     )
 
 
-    # -------------------------------------------------
-    # Save uploaded file
-    # -------------------------------------------------
-
     content = await file.read()
+
 
     file_path.write_bytes(
         content
     )
 
 
-    # -------------------------------------------------
+    # =================================================
     # Ingest document into RAG
-    # -------------------------------------------------
+    # =================================================
 
     try:
 
@@ -339,32 +442,40 @@ async def upload_file(
 
         return {
             "success": False,
-            "filename": filename,
+            "filename": file.filename,
             "conversation_id": conversation_id,
             "message": str(exc),
         }
-
 
 # =====================================================
 # List Documents
 # =====================================================
 
-@app.get(
-    "/documents/{conversation_id}"
-)
+@app.get("/documents/{conversation_id}")
 def list_documents(
     conversation_id: str,
 ):
 
-    documents = rag_service.list_documents(
-        conversation_id=conversation_id,
-    )
+    try:
 
-    return {
-        "success": True,
-        "conversation_id": conversation_id,
-        "documents": documents,
-    }
+        documents = rag_service.list_documents(
+            conversation_id=conversation_id,
+        )
+
+        return {
+            "success": True,
+            "conversation_id": conversation_id,
+            "documents": documents,
+        }
+
+    except Exception as exc:
+
+        return {
+            "success": False,
+            "conversation_id": conversation_id,
+            "documents": [],
+            "message": str(exc),
+        }
 
 
 # =====================================================
@@ -379,53 +490,41 @@ def delete_document(
     filename: str,
 ):
 
-    # -------------------------------------------------
-    # Delete from ChromaDB
-    # -------------------------------------------------
+    try:
 
-    deleted = rag_service.delete_document(
-        conversation_id=conversation_id,
-        filename=filename,
-    )
+        result = rag_service.delete_document(
+            conversation_id=conversation_id,
+            filename=filename,
+        )
+
+        # ---------------------------------------------
+        # Delete physical uploaded file
+        # ---------------------------------------------
+
+        file_path = (
+            UPLOAD_DIR
+            / str(conversation_id)
+            / Path(filename).name
+        )
+
+        if file_path.exists():
+
+            file_path.unlink()
 
 
-    if not deleted:
+        return {
+            "success": True,
+            "conversation_id": conversation_id,
+            "filename": filename,
+            "message": "Document deleted successfully.",
+            "result": result,
+        }
+
+    except Exception as exc:
 
         return {
             "success": False,
             "conversation_id": conversation_id,
             "filename": filename,
-            "message": "Document not found.",
+            "message": str(exc),
         }
-
-
-    # -------------------------------------------------
-    # Delete physical file
-    # -------------------------------------------------
-
-    safe_filename = Path(
-        filename
-    ).name
-
-    file_path = (
-        UPLOAD_DIR
-        / conversation_id
-        / safe_filename
-    )
-
-
-    if file_path.exists():
-
-        file_path.unlink()
-
-
-    # -------------------------------------------------
-    # Response
-    # -------------------------------------------------
-
-    return {
-        "success": True,
-        "conversation_id": conversation_id,
-        "filename": safe_filename,
-        "message": "Document deleted successfully.",
-    }
