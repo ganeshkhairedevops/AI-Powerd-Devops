@@ -5,6 +5,7 @@ This file centralizes all configurable settings
 for the DevOps AI Agent.
 """
 
+
 # =====================================================
 # Application
 # =====================================================
@@ -25,9 +26,11 @@ DEBUG = True
 # =====================================================
 
 # Development Model
+
 OLLAMA_CHAT_MODEL = "llama3.1:8b"
 
 # Production Model
+
 # OLLAMA_CHAT_MODEL = "qwen3-coder:30b"
 
 OLLAMA_EMBED_MODEL = "nomic-embed-text"
@@ -46,6 +49,26 @@ CHUNK_SIZE = 1000
 CHUNK_OVERLAP = 200
 
 TOP_K_RESULTS = 4
+
+
+# =====================================================
+# RAG Retrieval Quality
+# =====================================================
+
+# Maximum ChromaDB distance score accepted as
+# relevant retrieval context.
+#
+# Lower distance generally means better similarity.
+#
+# Start conservatively and tune after testing.
+
+RAG_SCORE_THRESHOLD = 0.85
+
+
+# Maximum number of relevant chunks that can be
+# passed to the RAG answer generation.
+
+MAX_RAG_CONTEXT_CHUNKS = 3
 
 
 # =====================================================
