@@ -9,6 +9,8 @@ Handles:
 - RAG document retrieval
 - DevOps agent execution
 - File uploads
+- Document listing
+- Document deletion
 """
 
 from pathlib import Path
@@ -137,11 +139,43 @@ def chat(
 
 
     # =================================================
-    # Determine question route
+    # Check uploaded documents
+    # =================================================
+
+    try:
+
+        documents = rag_service.list_documents(
+            conversation_id=request.conversation_id,
+        )
+
+    except Exception as exc:
+
+        print(
+            "Document lookup failed:",
+            str(exc),
+        )
+
+        documents = []
+
+
+    has_documents = bool(
+        documents
+    )
+
+
+    print(
+        "Documents Available:",
+        has_documents,
+    )
+
+
+    # =================================================
+    # Determine Question Route
     # =================================================
 
     route = question_router.route(
-        request.message
+        question=request.message,
+        has_documents=has_documents,
     )
 
 
@@ -156,9 +190,12 @@ def chat(
     # =================================================
 
     history = memory.get_messages(
-        request.conversation_id
+        request.conversation_id,
     )
 
+
+    # The current user message was just added,
+    # therefore exclude it from previous history.
 
     previous_messages = history[:-1]
 
@@ -211,8 +248,12 @@ def chat(
             )
 
 
+            # -------------------------------------------------
+            # RAG successfully answered
+            # -------------------------------------------------
+
             if (
-                rag_answer
+                rag_answer.strip()
                 != "NOT_ENOUGH_CONTEXT"
             ):
 
@@ -242,7 +283,7 @@ def chat(
 
 
         # -------------------------------------------------
-        # RAG doesn't have enough information
+        # RAG could not answer
         # -------------------------------------------------
 
         print(
@@ -266,7 +307,7 @@ def chat(
 
 
         response = llm.invoke(
-            request.message
+            request.message,
         )
 
 
@@ -320,6 +361,11 @@ def chat(
     )
 
 
+    print(
+        "Processing through DevOps Agent..."
+    )
+
+
     response = agent.invoke(
         {
             "messages": messages,
@@ -345,7 +391,7 @@ def chat(
 
 
     # =================================================
-    # Response
+    # Agent Response
     # =================================================
 
     return {
@@ -384,12 +430,21 @@ async def upload_file(
 
 
     # =================================================
+    # Secure filename
+    # =================================================
+
+    filename = Path(
+        file.filename
+    ).name
+
+
+    # =================================================
     # Conversation Upload Directory
     # =================================================
 
     conversation_dir = (
-        UPLOAD_DIR /
-        str(conversation_id)
+        UPLOAD_DIR
+        / str(conversation_id)
     )
 
 
@@ -400,32 +455,54 @@ async def upload_file(
 
 
     # =================================================
-    # Save uploaded file
+    # File Path
     # =================================================
 
     file_path = (
-        conversation_dir /
-        file.filename
-    )
-
-
-    content = await file.read()
-
-
-    file_path.write_bytes(
-        content
+        conversation_dir
+        / filename
     )
 
 
     # =================================================
-    # Ingest document into RAG
+    # Read File
     # =================================================
 
     try:
 
-        result = rag_service.ingest_file(
-            filepath=str(file_path),
-            conversation_id=conversation_id,
+        content = await file.read()
+
+        file_path.write_bytes(
+            content
+        )
+
+    except Exception as exc:
+
+        return {
+            "success": False,
+            "filename": filename,
+            "conversation_id": (
+                conversation_id
+            ),
+            "message": (
+                f"Unable to save file: {exc}"
+            ),
+        }
+
+
+    # =================================================
+    # Ingest Document
+    # =================================================
+
+    try:
+
+        result = (
+            rag_service.ingest_file(
+                filepath=str(file_path),
+                conversation_id=(
+                    conversation_id
+                ),
+            )
         )
 
 
@@ -433,7 +510,9 @@ async def upload_file(
             "success": result["success"],
             "filename": result["filename"],
             "chunks": result["chunks"],
-            "conversation_id": conversation_id,
+            "conversation_id": (
+                conversation_id
+            ),
             "message": result["message"],
         }
 
@@ -442,37 +521,52 @@ async def upload_file(
 
         return {
             "success": False,
-            "filename": file.filename,
-            "conversation_id": conversation_id,
+            "filename": filename,
+            "conversation_id": (
+                conversation_id
+            ),
             "message": str(exc),
         }
+
 
 # =====================================================
 # List Documents
 # =====================================================
 
-@app.get("/documents/{conversation_id}")
+@app.get(
+    "/documents/{conversation_id}"
+)
 def list_documents(
     conversation_id: str,
 ):
 
     try:
 
-        documents = rag_service.list_documents(
-            conversation_id=conversation_id,
+        documents = (
+            rag_service.list_documents(
+                conversation_id=(
+                    conversation_id
+                ),
+            )
         )
+
 
         return {
             "success": True,
-            "conversation_id": conversation_id,
+            "conversation_id": (
+                conversation_id
+            ),
             "documents": documents,
         }
+
 
     except Exception as exc:
 
         return {
             "success": False,
-            "conversation_id": conversation_id,
+            "conversation_id": (
+                conversation_id
+            ),
             "documents": [],
             "message": str(exc),
         }
@@ -492,20 +586,30 @@ def delete_document(
 
     try:
 
-        result = rag_service.delete_document(
-            conversation_id=conversation_id,
-            filename=filename,
+        # -------------------------------------------------
+        # Delete from ChromaDB
+        # -------------------------------------------------
+
+        result = (
+            rag_service.delete_document(
+                conversation_id=(
+                    conversation_id
+                ),
+                filename=filename,
+            )
         )
 
-        # ---------------------------------------------
-        # Delete physical uploaded file
-        # ---------------------------------------------
+
+        # -------------------------------------------------
+        # Delete physical file
+        # -------------------------------------------------
 
         file_path = (
             UPLOAD_DIR
             / str(conversation_id)
             / Path(filename).name
         )
+
 
         if file_path.exists():
 
@@ -514,17 +618,24 @@ def delete_document(
 
         return {
             "success": True,
-            "conversation_id": conversation_id,
+            "conversation_id": (
+                conversation_id
+            ),
             "filename": filename,
-            "message": "Document deleted successfully.",
+            "message": (
+                "Document deleted successfully."
+            ),
             "result": result,
         }
+
 
     except Exception as exc:
 
         return {
             "success": False,
-            "conversation_id": conversation_id,
+            "conversation_id": (
+                conversation_id
+            ),
             "filename": filename,
             "message": str(exc),
         }

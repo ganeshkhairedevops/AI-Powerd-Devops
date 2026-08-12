@@ -7,13 +7,28 @@ function FileUpload({ onUploadSuccess }) {
 
     const fileInputRef = useRef(null);
 
+
     const {
         currentChatId,
     } = useChatContext();
 
-    const [uploading, setUploading] = useState(false);
-    const [message, setMessage] = useState("");
-    const [error, setError] = useState("");
+
+    const [
+        uploading,
+        setUploading,
+    ] = useState(false);
+
+
+    const [
+        message,
+        setMessage,
+    ] = useState("");
+
+
+    const [
+        error,
+        setError,
+    ] = useState("");
 
 
     // =====================================================
@@ -42,7 +57,9 @@ function FileUpload({ onUploadSuccess }) {
 
 
         setUploading(true);
+
         setMessage("");
+
         setError("");
 
 
@@ -52,10 +69,12 @@ function FileUpload({ onUploadSuccess }) {
 
         const formData = new FormData();
 
+
         formData.append(
             "file",
             file
         );
+
 
         formData.append(
             "conversation_id",
@@ -74,7 +93,8 @@ function FileUpload({ onUploadSuccess }) {
                 formData,
                 {
                     headers: {
-                        "Content-Type": "multipart/form-data",
+                        "Content-Type":
+                            "multipart/form-data",
                     },
                 }
             );
@@ -84,17 +104,22 @@ function FileUpload({ onUploadSuccess }) {
             // Upload successful
             // -------------------------------------------------
 
-            if (response.data.success) {
+            if (
+                response.data.success
+            ) {
 
                 setMessage(
                     `${response.data.filename} uploaded successfully (${response.data.chunks} chunks)`
                 );
 
 
-                // Tell ChatWindow that upload completed.
-                // DocumentList will refresh automatically.
+                // -------------------------------------------------
+                // Refresh DocumentList
+                // -------------------------------------------------
 
-                if (onUploadSuccess) {
+                if (
+                    onUploadSuccess
+                ) {
 
                     onUploadSuccess();
 
@@ -127,9 +152,13 @@ function FileUpload({ onUploadSuccess }) {
             setUploading(false);
 
 
-            // Allow selecting the same file again.
+            // -------------------------------------------------
+            // Allow selecting the same file again
+            // -------------------------------------------------
 
-            if (fileInputRef.current) {
+            if (
+                fileInputRef.current
+            ) {
 
                 fileInputRef.current.value = "";
 
@@ -144,10 +173,13 @@ function FileUpload({ onUploadSuccess }) {
     // File Selection
     // =====================================================
 
-    function handleFileChange(event) {
+    function handleFileChange(
+        event
+    ) {
 
         const file =
             event.target.files?.[0];
+
 
         handleFile(file);
 
@@ -172,6 +204,7 @@ function FileUpload({ onUploadSuccess }) {
 
         setError("");
 
+
         fileInputRef.current?.click();
 
     }
@@ -185,20 +218,43 @@ function FileUpload({ onUploadSuccess }) {
 
         <div className="px-6 pb-3">
 
-            {/* Hidden file input */}
+            {/* =================================================
+                Hidden File Input
+            ================================================= */}
 
             <input
                 ref={fileInputRef}
                 type="file"
                 className="hidden"
-                onChange={handleFileChange}
+
+                accept="
+                    .yaml,
+                    .yml,
+                    .json,
+                    .tf,
+                    .tfvars,
+                    .md,
+                    .txt,
+                    .log,
+                    .sh,
+                    .dockerfile
+                "
+
+                onChange={
+                    handleFileChange
+                }
             />
 
 
-            {/* Upload area */}
+            {/* =================================================
+                Upload Area
+            ================================================= */}
 
             <div
-                onClick={openFilePicker}
+                onClick={
+                    openFilePicker
+                }
+
                 className="
                     border
                     border-dashed
@@ -216,7 +272,9 @@ function FileUpload({ onUploadSuccess }) {
                 {uploading ? (
 
                     <p className="text-cyan-400">
+
                         Uploading and indexing...
+
                     </p>
 
                 ) : (
@@ -224,12 +282,24 @@ function FileUpload({ onUploadSuccess }) {
                     <>
 
                         <p className="text-gray-300">
+
                             Upload DevOps File
+
                         </p>
 
-                        <p className="text-xs text-gray-500 mt-1">
-                            YAML, JSON, Dockerfile, Terraform,
-                            Markdown, logs and more
+
+                        <p
+                            className="
+                                text-xs
+                                text-gray-500
+                                mt-1
+                            "
+                        >
+
+                            YAML, JSON, Dockerfile,
+                            Terraform, Markdown,
+                            logs and more
+
                         </p>
 
                     </>
@@ -239,23 +309,43 @@ function FileUpload({ onUploadSuccess }) {
             </div>
 
 
-            {/* Success message */}
+            {/* =================================================
+                Success Message
+            ================================================= */}
 
             {message && (
 
-                <p className="text-sm text-green-400 mt-2">
+                <p
+                    className="
+                        text-sm
+                        text-green-400
+                        mt-2
+                    "
+                >
+
                     {message}
+
                 </p>
 
             )}
 
 
-            {/* Error message */}
+            {/* =================================================
+                Error Message
+            ================================================= */}
 
             {error && (
 
-                <p className="text-sm text-red-400 mt-2">
+                <p
+                    className="
+                        text-sm
+                        text-red-400
+                        mt-2
+                    "
+                >
+
                     {error}
+
                 </p>
 
             )}
