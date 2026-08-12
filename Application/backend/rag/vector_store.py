@@ -90,9 +90,50 @@ class VectorStore:
         """
         Search only documents belonging to
         the specified conversation.
+
+        Returns:
+            List of LangChain Document objects.
         """
 
         return self.db.similarity_search(
+            query,
+            k=k,
+            filter={
+                "conversation_id": conversation_id
+            },
+        )
+
+    # =================================================
+    # Search Documents With Scores
+    # =================================================
+
+    def search_with_scores(
+        self,
+        query: str,
+        conversation_id: str,
+        k: int = 4,
+    ):
+        """
+        Search documents and return similarity
+        distance scores.
+
+        The existing search() method remains
+        unchanged so current RAG behavior is
+        preserved.
+
+        Returns:
+
+            [
+                (Document, score),
+                ...
+            ]
+
+        The score is the distance returned by
+        ChromaDB. Lower values generally indicate
+        a more similar result.
+        """
+
+        return self.db.similarity_search_with_score(
             query,
             k=k,
             filter={

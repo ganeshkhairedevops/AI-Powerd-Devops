@@ -8,6 +8,7 @@ Handles:
 - Intelligent question routing
 - RAG document retrieval
 - RAG source attribution
+- RAG retrieval metadata
 - DevOps agent execution
 - General LLM questions
 - File uploads
@@ -196,11 +197,10 @@ def chat(
     )
 
 
-    # The current user message was just added,
+    # Current user message was just added,
     # therefore exclude it from previous history.
 
     previous_messages = history[:-1]
-
 
     messages = []
 
@@ -216,10 +216,15 @@ def chat(
 
 
     # =================================================
-    # Default RAG Sources
+    # Default RAG Metadata
     # =================================================
 
     rag_sources = []
+
+    rag_retrieval = {
+        "chunks_retrieved": 0,
+        "results": [],
+    }
 
 
     # =================================================
@@ -234,11 +239,11 @@ def chat(
 
 
         # -------------------------------------------------
-        # Retrieve context + source information
+        # Retrieve context + sources + metadata
         # -------------------------------------------------
 
         rag_result = (
-            rag_service.retrieve_context_with_sources(
+            rag_service.retrieve_context_with_metadata(
                 query=request.message,
                 conversation_id=(
                     request.conversation_id
@@ -246,6 +251,10 @@ def chat(
             )
         )
 
+
+        # -------------------------------------------------
+        # Extract context
+        # -------------------------------------------------
 
         rag_context = (
             rag_result.get(
@@ -255,6 +264,10 @@ def chat(
         )
 
 
+        # -------------------------------------------------
+        # Extract sources
+        # -------------------------------------------------
+
         rag_sources = (
             rag_result.get(
                 "sources",
@@ -263,9 +276,42 @@ def chat(
         )
 
 
+        # -------------------------------------------------
+        # Extract retrieval metadata
+        # -------------------------------------------------
+
+        rag_retrieval = (
+            rag_result.get(
+                "retrieval",
+                {
+                    "chunks_retrieved": 0,
+                    "results": [],
+                },
+            )
+        )
+
+
         print(
             "RAG Sources:",
             rag_sources,
+        )
+
+
+        print(
+            "RAG Chunks Retrieved:",
+            rag_retrieval.get(
+                "chunks_retrieved",
+                0,
+            ),
+        )
+
+
+        print(
+            "RAG Retrieval Results:",
+            rag_retrieval.get(
+                "results",
+                [],
+            ),
         )
 
 
@@ -323,6 +369,7 @@ def chat(
                     "rag_used": True,
                     "agent_used": False,
                     "sources": rag_sources,
+                    "retrieval": rag_retrieval,
                 }
 
 
@@ -336,10 +383,16 @@ def chat(
         )
 
 
-        # Sources are not returned as final sources
-        # when the answer comes from the Agent.
+        # Sources and retrieval metadata are not
+        # returned as final RAG data when the
+        # Agent produces the answer.
 
         rag_sources = []
+
+        rag_retrieval = {
+            "chunks_retrieved": 0,
+            "results": [],
+        }
 
         route = QuestionRoute.AGENT
 
@@ -404,6 +457,10 @@ def chat(
             "rag_used": False,
             "agent_used": False,
             "sources": [],
+            "retrieval": {
+                "chunks_retrieved": 0,
+                "results": [],
+            },
         }
 
 
@@ -463,6 +520,10 @@ def chat(
         "rag_used": False,
         "agent_used": True,
         "sources": [],
+        "retrieval": {
+            "chunks_retrieved": 0,
+            "results": [],
+        },
     }
 
 
