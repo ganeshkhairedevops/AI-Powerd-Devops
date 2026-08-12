@@ -1,6 +1,10 @@
 import DocumentList from "./DocumentList";
 
-import { useEffect, useRef, useState } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 
 import { FaRobot } from "react-icons/fa";
 
@@ -25,10 +29,8 @@ function ChatWindow() {
     sendMessage,
   } = useChat();
 
-
   const messages =
     currentChat?.messages || [];
-
 
   const bottomRef =
     useRef(null);
@@ -149,9 +151,9 @@ function ChatWindow() {
                   text-slate-400
                 "
               >
-                Ask anything about Docker, Kubernetes, Linux,
-                Terraform, AWS, Jenkins, Ansible, GitHub, Helm,
-                Monitoring, or DevOps.
+                Ask anything about Docker, Kubernetes,
+                Linux, Terraform, AWS, Jenkins, Ansible,
+                GitHub, Helm, Monitoring, or DevOps.
               </p>
 
 
@@ -174,9 +176,22 @@ function ChatWindow() {
 
                 <Message
                   key={index}
+
                   role={message.role}
+
                   text={message.content}
-                  sources={message.sources || []}
+
+                  sources={
+                    message.sources || []
+                  }
+
+                  route={
+                    message.route || null
+                  }
+
+                  retrieval={
+                    message.retrieval || null
+                  }
                 />
 
               )
@@ -252,7 +267,6 @@ function ChatWindow() {
       />
 
     </div>
-
   );
 }
 

@@ -68,24 +68,42 @@ export default function useChat() {
 
       const assistantMessage = {
         role: "assistant",
+
         content: res.data.answer,
 
-        // RAG source attribution
+        // =================================================
+        // RAG Sources
+        // =================================================
+
         sources: Array.isArray(
           res.data.sources
         )
           ? res.data.sources
           : [],
 
-        // Store route information as well.
-        // This will be useful for future UI features.
-        route: res.data.route || null,
+        // =================================================
+        // Route
+        // =================================================
+
+        route:
+          res.data.route || null,
+
+        // =================================================
+        // RAG / Agent flags
+        // =================================================
 
         rag_used:
           res.data.rag_used || false,
 
         agent_used:
           res.data.agent_used || false,
+
+        // =================================================
+        // RAG Retrieval Metadata
+        // =================================================
+
+        retrieval:
+          res.data.retrieval || null,
       };
 
       // ===================================================
@@ -123,6 +141,7 @@ export default function useChat() {
             route: null,
             rag_used: false,
             agent_used: false,
+            retrieval: null,
           },
         ]
       );
