@@ -3,92 +3,157 @@ import api from "../services/api";
 import { useChatContext } from "../context/ChatContext";
 
 export default function useChat() {
+  const {
+    currentChat,
+    currentChatId,
+    createNewChat,
+    updateMessages,
+  } = useChatContext();
 
-    const {
-        currentChat,
-        currentChatId,
-        createNewChat,
-        updateMessages,
-    } = useChatContext();
+  const [loading, setLoading] = useState(false);
 
-    const [loading, setLoading] = useState(false);
+  async function sendMessage(question) {
+    let chatId = currentChatId;
 
-    async function sendMessage(question) {
+    // =====================================================
+    // Create chat automatically
+    // =====================================================
 
-        let chatId = currentChatId;
-
-        // Create chat automatically
-        if (!chatId) {
-            chatId = createNewChat();
-        }
-
-        const existingMessages =
-            currentChat?.messages || [];
-
-        const updatedMessages = [
-            ...existingMessages,
-            {
-                role: "user",
-                content: question,
-            },
-        ];
-
-        updateMessages(chatId, updatedMessages);
-
-        setLoading(true);
-
-        try {
-
-            const res = await api.post("/chat", {
-
-                conversation_id: String(chatId),
-
-                message: question,
-
-            });
-
-            updateMessages(chatId, [
-
-                ...updatedMessages,
-
-                {
-                    role: "assistant",
-                    content: res.data.answer,
-                },
-
-            ]);
-
-        }
-
-        catch {
-
-            updateMessages(chatId, [
-
-                ...updatedMessages,
-
-                {
-                    role: "assistant",
-                    content: "Unable to connect to backend.",
-                },
-
-            ]);
-
-        }
-
-        finally {
-
-            setLoading(false);
-
-        }
-
+    if (!chatId) {
+      chatId = createNewChat();
     }
 
-    return {
+    // =====================================================
+    // Existing messages
+    // =====================================================
 
-        loading,
+    const existingMessages =
+      currentChat?.messages || [];
 
-        sendMessage,
+    // =====================================================
+    // Add user message
+    // =====================================================
 
-    };
+    const updatedMessages = [
+      ...existingMessages,
+      {
+        role: "user",
+        content: question,
+      },
+    ];
 
+    updateMessages(
+      chatId,
+      updatedMessages
+    );
+
+    setLoading(true);
+
+    try {
+      // ===================================================
+      // Send request to backend
+      // ===================================================
+
+      const res = await api.post(
+        "/chat",
+        {
+          conversation_id: String(chatId),
+          message: question,
+        }
+      );
+
+      // ===================================================
+      // Backend response
+      // ===================================================
+
+      const assistantMessage = {
+        role: "assistant",
+
+        content: res.data.answer,
+
+        // =================================================
+        // RAG Sources
+        // =================================================
+
+        sources: Array.isArray(
+          res.data.sources
+        )
+          ? res.data.sources
+          : [],
+
+        // =================================================
+        // Route
+        // =================================================
+
+        route:
+          res.data.route || null,
+
+        // =================================================
+        // RAG / Agent flags
+        // =================================================
+
+        rag_used:
+          res.data.rag_used || false,
+
+        agent_used:
+          res.data.agent_used || false,
+
+        // =================================================
+        // RAG Retrieval Metadata
+        // =================================================
+
+        retrieval:
+          res.data.retrieval || null,
+      };
+
+      // ===================================================
+      // Update conversation
+      // ===================================================
+
+      updateMessages(
+        chatId,
+        [
+          ...updatedMessages,
+          assistantMessage,
+        ]
+      );
+    }
+
+    catch (error) {
+      console.error(
+        "Chat error:",
+        error
+      );
+
+      // ===================================================
+      // Error message
+      // ===================================================
+
+      updateMessages(
+        chatId,
+        [
+          ...updatedMessages,
+          {
+            role: "assistant",
+            content:
+              "Unable to connect to backend.",
+            sources: [],
+            route: null,
+            rag_used: false,
+            agent_used: false,
+            retrieval: null,
+          },
+        ]
+      );
+    }
+
+    finally {
+      setLoading(false);
+    }
+  }
+
+  return {
+    loading,
+    sendMessage,
+  };
 }

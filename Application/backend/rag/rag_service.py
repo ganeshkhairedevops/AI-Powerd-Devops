@@ -11,6 +11,8 @@ Coordinates:
 - Document answering
 - Document listing
 - Document deletion
+- Source attribution
+- Retrieval metadata
 
 Documents are isolated by conversation_id.
 """
@@ -96,8 +98,45 @@ class RAGService:
         conversation_id: str,
     ) -> str:
         """
-        Retrieve relevant context only from the
-        specified conversation.
+        Retrieve relevant document context only from
+        the specified conversation.
+
+        This method remains compatible with the
+        existing application and returns only the
+        context string.
+        """
+
+        result = self.retrieve_context_with_sources(
+            query=query,
+            conversation_id=conversation_id,
+        )
+
+        return result["context"]
+
+    # =================================================
+    # Retrieve Context With Sources
+    # =================================================
+
+    def retrieve_context_with_sources(
+        self,
+        query: str,
+        conversation_id: str,
+    ):
+        """
+        Retrieve relevant document chunks and return
+        both the context and source information.
+
+        Returns:
+
+        {
+            "context": str,
+            "sources": [
+                {
+                    "filename": str,
+                    "chunk": int
+                }
+            ]
+        }
         """
 
         documents = retriever.retrieve(
@@ -106,29 +145,294 @@ class RAGService:
         )
 
         if not documents:
-            return ""
+
+            return {
+                "context": "",
+                "sources": [],
+            }
 
         context_parts = []
+
+        sources = []
+
+        seen_sources = set()
 
         for index, document in enumerate(
             documents,
             start=1,
         ):
 
-            filename = document.metadata.get(
+            metadata = (
+                document.metadata
+                or {}
+            )
+
+            # -------------------------------------------------
+            # Filename
+            # -------------------------------------------------
+
+            filename = metadata.get(
                 "filename",
                 "unknown",
             )
 
+            # -------------------------------------------------
+            # Chunk index
+            #
+            # ChromaDB stores chunk_index starting
+            # from 0, so convert it to a human-readable
+            # chunk number starting from 1.
+            # -------------------------------------------------
+
+            stored_chunk_index = metadata.get(
+                "chunk_index",
+                index - 1,
+            )
+
+            try:
+
+                chunk_number = (
+                    int(stored_chunk_index)
+                    + 1
+                )
+
+            except (
+                TypeError,
+                ValueError,
+            ):
+
+                chunk_number = index
+
+            # -------------------------------------------------
+            # Build context
+            # -------------------------------------------------
+
             context_parts.append(
                 f"--- {filename} | "
-                f"Document Chunk {index} ---\n"
+                f"Document Chunk {chunk_number} ---\n"
                 f"{document.page_content}"
             )
 
-        return "\n\n".join(
+            # -------------------------------------------------
+            # Source
+            # -------------------------------------------------
+
+            source_key = (
+                filename,
+                chunk_number,
+            )
+
+            if source_key not in seen_sources:
+
+                sources.append(
+                    {
+                        "filename": filename,
+                        "chunk": chunk_number,
+                    }
+                )
+
+                seen_sources.add(
+                    source_key
+                )
+
+        # -------------------------------------------------
+        # Final context
+        # -------------------------------------------------
+
+        context = "\n\n".join(
             context_parts
         )
+
+        return {
+            "context": context,
+            "sources": sources,
+        }
+
+    # =================================================
+    # Retrieve Context With Metadata
+    # =================================================
+
+    def retrieve_context_with_metadata(
+        self,
+        query: str,
+        conversation_id: str,
+    ):
+        """
+        Retrieve relevant document chunks together
+        with source and retrieval metadata.
+
+        Returns:
+
+        {
+            "context": str,
+            "sources": [],
+            "retrieval": {
+                "chunks_retrieved": int,
+                "results": [
+                    {
+                        "filename": str,
+                        "chunk": int,
+                        "score": float
+                    }
+                ]
+            }
+        }
+
+        The score returned by ChromaDB is a distance
+        value. Lower values generally indicate that
+        the retrieved result is more similar to the
+        query.
+        """
+
+        results = retriever.retrieve_with_scores(
+            query=query,
+            conversation_id=conversation_id,
+        )
+
+        if not results:
+
+            return {
+                "context": "",
+                "sources": [],
+                "retrieval": {
+                    "chunks_retrieved": 0,
+                    "results": [],
+                },
+            }
+
+        context_parts = []
+
+        sources = []
+
+        retrieval_results = []
+
+        seen_sources = set()
+
+        for index, item in enumerate(
+            results,
+            start=1,
+        ):
+
+            # -------------------------------------------------
+            # Result structure
+            #
+            # ChromaDB / LangChain returns:
+            #
+            # (Document, score)
+            # -------------------------------------------------
+
+            document, score = item
+
+            metadata = (
+                document.metadata
+                or {}
+            )
+
+            # -------------------------------------------------
+            # Filename
+            # -------------------------------------------------
+
+            filename = metadata.get(
+                "filename",
+                "unknown",
+            )
+
+            # -------------------------------------------------
+            # Chunk index
+            # -------------------------------------------------
+
+            stored_chunk_index = metadata.get(
+                "chunk_index",
+                index - 1,
+            )
+
+            try:
+
+                chunk_number = (
+                    int(stored_chunk_index)
+                    + 1
+                )
+
+            except (
+                TypeError,
+                ValueError,
+            ):
+
+                chunk_number = index
+
+            # -------------------------------------------------
+            # Build context
+            # -------------------------------------------------
+
+            context_parts.append(
+                f"--- {filename} | "
+                f"Document Chunk {chunk_number} ---\n"
+                f"{document.page_content}"
+            )
+
+            # -------------------------------------------------
+            # Source
+            # -------------------------------------------------
+
+            source_key = (
+                filename,
+                chunk_number,
+            )
+
+            if source_key not in seen_sources:
+
+                sources.append(
+                    {
+                        "filename": filename,
+                        "chunk": chunk_number,
+                    }
+                )
+
+                seen_sources.add(
+                    source_key
+                )
+
+            # -------------------------------------------------
+            # Retrieval metadata
+            # -------------------------------------------------
+
+            try:
+
+                score_value = float(
+                    score
+                )
+
+            except (
+                TypeError,
+                ValueError,
+            ):
+
+                score_value = None
+
+            retrieval_results.append(
+                {
+                    "filename": filename,
+                    "chunk": chunk_number,
+                    "score": score_value,
+                }
+            )
+
+        # -------------------------------------------------
+        # Final context
+        # -------------------------------------------------
+
+        context = "\n\n".join(
+            context_parts
+        )
+
+        return {
+            "context": context,
+            "sources": sources,
+            "retrieval": {
+                "chunks_retrieved": len(results),
+                "results": retrieval_results,
+            },
+        }
 
     # =================================================
     # Answer From Context
@@ -150,15 +454,13 @@ You are a DevOps document analysis assistant.
 Answer the user's question using ONLY the
 provided document context.
 
-DOCUMENT CONTEXT
-----------------
-{context}
-----------------
+## DOCUMENT CONTEXT
 
-USER QUESTION
-----------------
+{context}
+
+## USER QUESTION
+
 {question}
-----------------
 
 Rules:
 
@@ -194,7 +496,9 @@ Answer:
             "content",
         ):
 
-            answer = response.content.strip()
+            answer = (
+                response.content.strip()
+            )
 
         else:
 
