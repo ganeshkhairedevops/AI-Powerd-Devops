@@ -1,17 +1,22 @@
 """
 Question Router
 
-Determines the high-level handling strategy for a user question.
+Determines whether a question should be handled by:
 
-Routes:
+- RAG
+- DevOps Agent
+- General LLM
 
-    RAG      -> uploaded document question
-    AGENT    -> live DevOps operation
-    GENERAL  -> general DevOps/technical question
+The router can use conversation context to determine
+whether uploaded documents should be considered.
 """
 
 from enum import Enum
 
+
+# =====================================================
+# Routes
+# =====================================================
 
 class QuestionRoute(str, Enum):
 
@@ -22,149 +27,273 @@ class QuestionRoute(str, Enum):
     GENERAL = "general"
 
 
+# =====================================================
+# Question Router
+# =====================================================
+
 class QuestionRouter:
     """
-    Lightweight rule-based question router.
+    Context-aware question router.
 
-    This intentionally does not execute tools or access RAG.
-    It only determines the likely handling strategy.
+    Routing priority:
+
+    1. Explicit live-environment question
+    2. Explicit general knowledge question
+    3. Explicit document question
+    4. Configuration/resource question when documents exist
+    5. General
     """
 
     # =================================================
-    # Live environment keywords
+    # Explicit live-environment indicators
     # =================================================
 
-    LIVE_KEYWORDS = (
+    LIVE_PHRASES = (
 
-        "show",
+        # -------------------------------------------------
+        # Kubernetes live operations
+        # -------------------------------------------------
 
-        "list",
+        "show running kubernetes pods",
+        "show kubernetes pods",
+        "list kubernetes pods",
+        "get kubernetes pods",
 
-        "get",
+        "show running pods",
+        "show pods",
+        "list pods",
+        "get pods",
 
-        "check",
+        "show nodes",
+        "list nodes",
+        "get nodes",
 
-        "current",
+        "show kubernetes services",
+        "list kubernetes services",
+        "get kubernetes services",
 
-        "running",
+        "show kubernetes deployments",
+        "list kubernetes deployments",
+        "get kubernetes deployments",
 
-        "status",
+        "show kubernetes events",
+        "list kubernetes events",
 
-        "logs",
+        "current kubernetes context",
+        "current context",
 
-        "restart",
+        "cluster version",
+        "cluster status",
+        "cluster info",
 
-        "stop",
+        "live cluster",
+        "live environment",
 
-        "start",
+        "kubectl",
 
-        "delete",
+        # -------------------------------------------------
+        # Docker live operations
+        # -------------------------------------------------
 
-        "create",
+        "show running docker containers",
+        "show docker containers",
+        "list docker containers",
+        "get docker containers",
 
-        "deploy",
+        "show running containers",
+        "list running containers",
 
-        "deployment",
+        "show docker images",
+        "list docker images",
+        "get docker images",
 
-        "inspect",
+        "show docker networks",
+        "list docker networks",
 
-        "describe",
+        "show docker volumes",
+        "list docker volumes",
 
-        "version",
+        "show container logs",
+        "show docker logs",
 
-        "health",
+        "inspect container",
+        "inspect docker container",
 
-        "nodes",
+        "docker version",
+        "docker info",
 
-        "pods",
+        "docker ps",
+        "docker images",
+        "docker networks",
+        "docker volumes",
 
-        "containers",
-
-        "services",
-
-        "images",
-
-        "volumes",
-
-        "processes",
-
-        "disk",
-
-        "memory",
-
-        "cpu",
+        # -------------------------------------------------
+        # Terraform live operations
+        # -------------------------------------------------
 
         "terraform plan",
-
         "terraform validate",
-
         "terraform state",
 
+        # -------------------------------------------------
+        # Git live operations
+        # -------------------------------------------------
+
         "git status",
-
         "git branch",
-
         "git log",
 
-        "helm list",
+        # -------------------------------------------------
+        # Helm live operations
+        # -------------------------------------------------
 
+        "helm list",
         "helm status",
 
-        "aws",
+        # -------------------------------------------------
+        # AWS live operations
+        # -------------------------------------------------
 
-        "jenkins",
+        "aws account",
+        "aws identity",
 
-        "ansible",
+        # -------------------------------------------------
+        # Jenkins live operations
+        # -------------------------------------------------
 
+        "jenkins jobs",
+
+        # -------------------------------------------------
+        # Ansible live operations
+        # -------------------------------------------------
+
+        "ansible inventory",
     )
 
 
     # =================================================
-    # Document keywords
+    # Explicit document indicators
+    # =================================================
+
+    DOCUMENT_PHRASES = (
+
+        "uploaded file",
+        "uploaded document",
+        "uploaded yaml",
+        "uploaded yml",
+        "uploaded json",
+        "uploaded dockerfile",
+        "uploaded terraform",
+
+        "this file",
+        "this document",
+
+        "the file",
+        "the document",
+
+        "in the file",
+        "in the document",
+
+        "from the file",
+        "from the document",
+
+        "according to the file",
+        "according to the document",
+
+        "according to the yaml",
+        "according to the dockerfile",
+
+        "in test.yaml",
+        "in test.yml",
+
+        "in the yaml",
+        "in the dockerfile",
+
+        "what image is used",
+        "which image is used",
+
+        "what image is defined",
+        "which image is defined",
+
+        "what api version",
+        "which api version",
+
+        "what apiversion",
+        "which apiversion",
+
+        "how many replicas",
+
+        "what container",
+        "which container",
+    )
+
+
+    # =================================================
+    # Document/configuration indicators
     # =================================================
 
     DOCUMENT_KEYWORDS = (
 
-        "uploaded file",
+        "apiversion",
 
-        "uploaded document",
+        "kind",
 
-        "uploaded yaml",
+        "metadata",
 
-        "uploaded json",
+        "spec",
 
-        "uploaded dockerfile",
+        "container",
 
-        "uploaded terraform",
+        "containers",
 
-        "this file",
+        "image",
 
-        "this document",
+        "replicas",
 
-        "the file",
+        "namespace",
 
-        "the document",
+        "port",
 
-        "according to the file",
+        "ports",
 
-        "according to the document",
+        "volume",
 
-        "in the file",
+        "volumes",
 
-        "in the document",
+        "service",
 
-        "from the file",
+        "deployment",
 
-        "from the document",
+        "dockerfile",
 
-        "what does this yaml",
+        "terraform resource",
 
-        "what does this json",
+        "terraform variable",
 
-        "what does this dockerfile",
+        "terraform output",
+    )
 
-        "which image is used by the pod",
 
+    # =================================================
+    # General knowledge indicators
+    # =================================================
+
+    GENERAL_PHRASES = (
+
+        "what is",
+        "what are",
+
+        "explain",
+
+        "define",
+
+        "difference between",
+
+        "why use",
+
+        "how does",
+
+        "what does",
     )
 
 
@@ -175,9 +304,18 @@ class QuestionRouter:
     def route(
         self,
         question: str,
+        has_documents: bool = False,
     ) -> QuestionRoute:
         """
         Determine the appropriate route.
+
+        Priority:
+
+        1. Explicit live-environment question
+        2. Explicit general knowledge question
+        3. Explicit document question
+        4. Configuration question when documents exist
+        5. General
         """
 
         normalized = (
@@ -187,34 +325,105 @@ class QuestionRouter:
         )
 
 
+        # -------------------------------------------------
+        # Empty question
+        # -------------------------------------------------
+
         if not normalized:
 
             return QuestionRoute.GENERAL
 
 
         # -------------------------------------------------
-        # Explicit document questions
+        # Priority 1:
+        # Explicit live environment
+        #
+        # Examples:
+        #
+        # Show running Docker containers
+        # Show Kubernetes pods
+        # What is the Kubernetes cluster version?
         # -------------------------------------------------
 
-        for keyword in self.DOCUMENT_KEYWORDS:
+        for phrase in self.LIVE_PHRASES:
 
-            if keyword in normalized:
-
-                return QuestionRoute.RAG
-
-
-        # -------------------------------------------------
-        # Explicit live environment questions
-        # -------------------------------------------------
-
-        for keyword in self.LIVE_KEYWORDS:
-
-            if keyword in normalized:
+            if phrase.lower() in normalized:
 
                 return QuestionRoute.AGENT
 
 
         # -------------------------------------------------
+        # Priority 2:
+        # General knowledge
+        #
+        # Examples:
+        #
+        # What is Kubernetes?
+        # Explain Docker containers
+        # What is Terraform?
+        # -------------------------------------------------
+
+        for phrase in self.GENERAL_PHRASES:
+
+            if phrase.lower() in normalized:
+
+                # -------------------------------------------------
+                # If the question explicitly refers to an uploaded
+                # document, RAG takes priority.
+                #
+                # Example:
+                #
+                # "Explain the Dockerfile"
+                # -------------------------------------------------
+
+                if has_documents:
+
+                    for document_phrase in (
+                        self.DOCUMENT_PHRASES
+                    ):
+
+                        if (
+                            document_phrase.lower()
+                            in normalized
+                        ):
+
+                            return QuestionRoute.RAG
+
+
+                return QuestionRoute.GENERAL
+
+
+        # -------------------------------------------------
+        # Priority 3:
+        # Explicit document question
+        # -------------------------------------------------
+
+        if has_documents:
+
+            for phrase in self.DOCUMENT_PHRASES:
+
+                if phrase.lower() in normalized:
+
+                    return QuestionRoute.RAG
+
+
+            # -------------------------------------------------
+            # Configuration/resource question
+            #
+            # If uploaded documents exist and the question
+            # refers to configuration/resource information,
+            # use RAG.
+            # -------------------------------------------------
+
+            for keyword in self.DOCUMENT_KEYWORDS:
+
+                if keyword.lower() in normalized:
+
+                    return QuestionRoute.RAG
+
+
+        # -------------------------------------------------
+        # Priority 4:
         # Default
         # -------------------------------------------------
 
