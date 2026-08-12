@@ -7,7 +7,9 @@ Handles:
 - Memory
 - Intelligent question routing
 - RAG document retrieval
+- RAG source attribution
 - DevOps agent execution
+- General LLM questions
 - File uploads
 - Document listing
 - Document deletion
@@ -186,7 +188,7 @@ def chat(
 
 
     # =================================================
-    # Retrieve conversation history
+    # Retrieve Conversation History
     # =================================================
 
     history = memory.get_messages(
@@ -214,6 +216,13 @@ def chat(
 
 
     # =================================================
+    # Default RAG Sources
+    # =================================================
+
+    rag_sources = []
+
+
+    # =================================================
     # RAG ROUTE
     # =================================================
 
@@ -224,13 +233,39 @@ def chat(
         )
 
 
-        rag_context = (
-            rag_service.retrieve_context(
+        # -------------------------------------------------
+        # Retrieve context + source information
+        # -------------------------------------------------
+
+        rag_result = (
+            rag_service.retrieve_context_with_sources(
                 query=request.message,
                 conversation_id=(
                     request.conversation_id
                 ),
             )
+        )
+
+
+        rag_context = (
+            rag_result.get(
+                "context",
+                "",
+            )
+        )
+
+
+        rag_sources = (
+            rag_result.get(
+                "sources",
+                [],
+            )
+        )
+
+
+        print(
+            "RAG Sources:",
+            rag_sources,
         )
 
 
@@ -260,12 +295,20 @@ def chat(
                 answer = rag_answer
 
 
+                # -------------------------------------------------
+                # Save assistant response
+                # -------------------------------------------------
+
                 memory.add_message(
                     request.conversation_id,
                     "assistant",
                     answer,
                 )
 
+
+                # -------------------------------------------------
+                # RAG Response
+                # -------------------------------------------------
 
                 return {
                     "success": True,
@@ -279,6 +322,7 @@ def chat(
                     "route": "rag",
                     "rag_used": True,
                     "agent_used": False,
+                    "sources": rag_sources,
                 }
 
 
@@ -291,6 +335,11 @@ def chat(
             "Falling back to agent."
         )
 
+
+        # Sources are not returned as final sources
+        # when the answer comes from the Agent.
+
+        rag_sources = []
 
         route = QuestionRoute.AGENT
 
@@ -327,12 +376,20 @@ def chat(
             ).strip()
 
 
+        # -------------------------------------------------
+        # Save assistant response
+        # -------------------------------------------------
+
         memory.add_message(
             request.conversation_id,
             "assistant",
             answer,
         )
 
+
+        # -------------------------------------------------
+        # General Response
+        # -------------------------------------------------
 
         return {
             "success": True,
@@ -346,6 +403,7 @@ def chat(
             "route": "general",
             "rag_used": False,
             "agent_used": False,
+            "sources": [],
         }
 
 
@@ -380,7 +438,7 @@ def chat(
 
 
     # =================================================
-    # Save assistant response
+    # Save Assistant Response
     # =================================================
 
     memory.add_message(
@@ -404,6 +462,7 @@ def chat(
         "route": "agent",
         "rag_used": False,
         "agent_used": True,
+        "sources": [],
     }
 
 
@@ -418,7 +477,7 @@ async def upload_file(
 ):
 
     # =================================================
-    # Validate filename
+    # Validate Filename
     # =================================================
 
     if not file.filename:
@@ -430,7 +489,7 @@ async def upload_file(
 
 
     # =================================================
-    # Secure filename
+    # Secure Filename
     # =================================================
 
     filename = Path(
@@ -615,6 +674,10 @@ def delete_document(
 
             file_path.unlink()
 
+
+        # -------------------------------------------------
+        # Response
+        # -------------------------------------------------
 
         return {
             "success": True,

@@ -176,6 +176,7 @@ function ChatWindow() {
                   key={index}
                   role={message.role}
                   text={message.content}
+                  sources={message.sources || []}
                 />
 
               )

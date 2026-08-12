@@ -11,6 +11,7 @@ Coordinates:
 - Document answering
 - Document listing
 - Document deletion
+- Source attribution
 
 Documents are isolated by conversation_id.
 """
@@ -96,8 +97,45 @@ class RAGService:
         conversation_id: str,
     ) -> str:
         """
-        Retrieve relevant context only from the
-        specified conversation.
+        Retrieve relevant document context only from
+        the specified conversation.
+
+        This method is kept compatible with the
+        existing application and returns only the
+        context string.
+        """
+
+        result = self.retrieve_context_with_sources(
+            query=query,
+            conversation_id=conversation_id,
+        )
+
+        return result["context"]
+
+    # =================================================
+    # Retrieve Context With Sources
+    # =================================================
+
+    def retrieve_context_with_sources(
+        self,
+        query: str,
+        conversation_id: str,
+    ):
+        """
+        Retrieve relevant document chunks and return
+        both the context and source information.
+
+        Returns:
+
+        {
+            "context": str,
+            "sources": [
+                {
+                    "filename": str,
+                    "chunk": int
+                }
+            ]
+        }
         """
 
         documents = retriever.retrieve(
@@ -106,29 +144,111 @@ class RAGService:
         )
 
         if not documents:
-            return ""
+
+            return {
+                "context": "",
+                "sources": [],
+            }
 
         context_parts = []
+
+        sources = []
+
+        seen_sources = set()
 
         for index, document in enumerate(
             documents,
             start=1,
         ):
 
-            filename = document.metadata.get(
+            metadata = (
+                document.metadata
+                or {}
+            )
+
+            # -------------------------------------------------
+            # Filename
+            # -------------------------------------------------
+
+            filename = metadata.get(
                 "filename",
                 "unknown",
             )
 
+            # -------------------------------------------------
+            # Chunk index
+            #
+            # vector_store stores chunk_index starting
+            # from 0, so convert it to a human-readable
+            # chunk number starting from 1.
+            # -------------------------------------------------
+
+            stored_chunk_index = metadata.get(
+                "chunk_index",
+                index - 1,
+            )
+
+            try:
+
+                chunk_number = (
+                    int(stored_chunk_index)
+                    + 1
+                )
+
+            except (
+                TypeError,
+                ValueError,
+            ):
+
+                chunk_number = index
+
+            # -------------------------------------------------
+            # Build context
+            # -------------------------------------------------
+
             context_parts.append(
                 f"--- {filename} | "
-                f"Document Chunk {index} ---\n"
+                f"Document Chunk {chunk_number} ---\n"
                 f"{document.page_content}"
             )
 
-        return "\n\n".join(
+            # -------------------------------------------------
+            # Source
+            #
+            # Avoid duplicate source entries if multiple
+            # retrieved results point to the same chunk.
+            # -------------------------------------------------
+
+            source_key = (
+                filename,
+                chunk_number,
+            )
+
+            if source_key not in seen_sources:
+
+                sources.append(
+                    {
+                        "filename": filename,
+                        "chunk": chunk_number,
+                    }
+                )
+
+                seen_sources.add(
+                    source_key
+                )
+
+        # -------------------------------------------------
+        # Final context
+        # -------------------------------------------------
+
+        context = "\n\n".join(
             context_parts
         )
+
+        return {
+            "context": context,
+            "sources": sources,
+        }
 
     # =================================================
     # Answer From Context
@@ -150,15 +270,13 @@ You are a DevOps document analysis assistant.
 Answer the user's question using ONLY the
 provided document context.
 
-DOCUMENT CONTEXT
-----------------
-{context}
-----------------
+## DOCUMENT CONTEXT
 
-USER QUESTION
-----------------
+{context}
+
+## USER QUESTION
+
 {question}
-----------------
 
 Rules:
 
@@ -194,7 +312,9 @@ Answer:
             "content",
         ):
 
-            answer = response.content.strip()
+            answer = (
+                response.content.strip()
+            )
 
         else:
 
