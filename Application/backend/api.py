@@ -5,6 +5,7 @@ Handles:
 
 - Chat
 - Memory
+- Conversation context
 - Intelligent question routing
 - RAG document retrieval
 - RAG source attribution
@@ -31,6 +32,10 @@ from rag.rag_service import rag_service
 from services.question_router import (
     question_router,
     QuestionRoute,
+)
+
+from services.conversation_context import (
+    conversation_context,
 )
 
 
@@ -131,7 +136,7 @@ def chat(
 
 
     # =================================================
-    # Save user message
+    # Save Original User Message
     # =================================================
 
     memory.add_message(
@@ -142,7 +147,45 @@ def chat(
 
 
     # =================================================
-    # Check uploaded documents
+    # Retrieve Conversation History
+    # =================================================
+
+    history = memory.get_messages(
+        request.conversation_id,
+    )
+
+
+    # The current user message was just added.
+    # Exclude it when resolving the current question.
+
+    previous_messages = history[:-1]
+
+
+    # =================================================
+    # Resolve Conversation Context
+    # =================================================
+
+    resolved_question = (
+        conversation_context.resolve_question(
+            question=request.message,
+            history=previous_messages,
+        )
+    )
+
+
+    print(
+        "Original Question:",
+        request.message,
+    )
+
+    print(
+        "Resolved Question:",
+        resolved_question,
+    )
+
+
+    # =================================================
+    # Check Uploaded Documents
     # =================================================
 
     try:
@@ -174,10 +217,13 @@ def chat(
 
     # =================================================
     # Determine Question Route
+    #
+    # IMPORTANT:
+    # Use resolved_question for routing.
     # =================================================
 
     route = question_router.route(
-        question=request.message,
+        question=resolved_question,
         has_documents=has_documents,
     )
 
@@ -189,18 +235,8 @@ def chat(
 
 
     # =================================================
-    # Retrieve Conversation History
+    # Prepare Previous Conversation Messages
     # =================================================
-
-    history = memory.get_messages(
-        request.conversation_id,
-    )
-
-
-    # Current user message was just added,
-    # therefore exclude it from previous history.
-
-    previous_messages = history[:-1]
 
     messages = []
 
@@ -239,12 +275,12 @@ def chat(
 
 
         # -------------------------------------------------
-        # Retrieve context + sources + metadata
+        # Retrieve context using the RESOLVED question
         # -------------------------------------------------
 
         rag_result = (
             rag_service.retrieve_context_with_metadata(
-                query=request.message,
+                query=resolved_question,
                 conversation_id=(
                     request.conversation_id
                 ),
@@ -323,7 +359,7 @@ def chat(
 
             rag_answer = (
                 rag_service.answer_from_context(
-                    question=request.message,
+                    question=resolved_question,
                     context=rag_context,
                 )
             )
@@ -364,6 +400,9 @@ def chat(
                     "question": (
                         request.message
                     ),
+                    "resolved_question": (
+                        resolved_question
+                    ),
                     "answer": answer,
                     "route": "rag",
                     "rag_used": True,
@@ -394,6 +433,7 @@ def chat(
             "results": [],
         }
 
+
         route = QuestionRoute.AGENT
 
 
@@ -408,8 +448,11 @@ def chat(
         )
 
 
+        # Use resolved question so follow-up
+        # questions retain their conversation context.
+
         response = llm.invoke(
-            request.message,
+            resolved_question,
         )
 
 
@@ -452,6 +495,9 @@ def chat(
             "question": (
                 request.message
             ),
+            "resolved_question": (
+                resolved_question
+            ),
             "answer": answer,
             "route": "general",
             "rag_used": False,
@@ -468,10 +514,12 @@ def chat(
     # AGENT ROUTE
     # =================================================
 
+    # Use the resolved question for the Agent.
+
     messages.append(
         (
             "user",
-            request.message,
+            resolved_question,
         )
     )
 
@@ -515,6 +563,9 @@ def chat(
             request.conversation_id
         ),
         "question": request.message,
+        "resolved_question": (
+            resolved_question
+        ),
         "answer": answer,
         "route": "agent",
         "rag_used": False,
