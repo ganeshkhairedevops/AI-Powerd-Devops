@@ -15,7 +15,9 @@ import SuggestionCards from "./chat/SuggestionCards";
 import FileUpload from "./FileUpload";
 
 import useChat from "../hooks/useChat";
-import { useChatContext } from "../context/ChatContext";
+import {
+  useChatContext,
+} from "../context/ChatContext";
 
 
 function ChatWindow() {
@@ -24,21 +26,24 @@ function ChatWindow() {
     currentChat,
   } = useChatContext();
 
+
   const {
     loading,
     sendMessage,
   } = useChat();
 
+
   const messages =
     currentChat?.messages || [];
+
 
   const bottomRef =
     useRef(null);
 
 
-  // -------------------------------------------------
-  // Document refresh
-  // -------------------------------------------------
+  // =====================================================
+  // Document Refresh
+  // =====================================================
 
   const [
     documentRefreshKey,
@@ -46,9 +51,9 @@ function ChatWindow() {
   ] = useState(0);
 
 
-  // -------------------------------------------------
-  // Auto scroll
-  // -------------------------------------------------
+  // =====================================================
+  // Auto Scroll
+  // =====================================================
 
   useEffect(() => {
 
@@ -62,14 +67,15 @@ function ChatWindow() {
   ]);
 
 
-  // -------------------------------------------------
-  // Upload completed
-  // -------------------------------------------------
+  // =====================================================
+  // Upload Completed
+  // =====================================================
 
   function handleUploadSuccess() {
 
     setDocumentRefreshKey(
-      previous => previous + 1
+      previous =>
+        previous + 1
     );
 
   }
@@ -78,6 +84,7 @@ function ChatWindow() {
   return (
 
     <div className="flex flex-1 flex-col bg-slate-950">
+
 
       {/* =================================================
           Conversation Header
@@ -92,13 +99,17 @@ function ChatWindow() {
 
       <div className="flex-1 overflow-y-auto p-8">
 
+
         {messages.length === 0 ? (
 
           <div className="flex h-full items-center justify-center">
 
             <div className="mx-auto max-w-4xl text-center">
 
-              {/* Robot Icon */}
+
+              {/* =================================================
+                  Robot Icon
+              ================================================= */}
 
               <div className="mb-6 flex justify-center">
 
@@ -128,7 +139,9 @@ function ChatWindow() {
               </div>
 
 
-              {/* Welcome Title */}
+              {/* =================================================
+                  Welcome Title
+              ================================================= */}
 
               <h2
                 className="
@@ -142,7 +155,9 @@ function ChatWindow() {
               </h2>
 
 
-              {/* Description */}
+              {/* =================================================
+                  Description
+              ================================================= */}
 
               <p
                 className="
@@ -151,13 +166,15 @@ function ChatWindow() {
                   text-slate-400
                 "
               >
-                Ask anything about Docker, Kubernetes,
-                Linux, Terraform, AWS, Jenkins, Ansible,
-                GitHub, Helm, Monitoring, or DevOps.
+                Ask anything about Docker, Kubernetes, Linux,
+                Terraform, AWS, Jenkins, Ansible, GitHub, Helm,
+                Monitoring, or DevOps.
               </p>
 
 
-              {/* Quick Suggestions */}
+              {/* =================================================
+                  Quick Suggestions
+              ================================================= */}
 
               <SuggestionCards
                 onSelect={sendMessage}
@@ -171,32 +188,51 @@ function ChatWindow() {
 
           <>
 
+            {/* =================================================
+                Messages
+            ================================================= */}
+
             {messages.map(
-              (message, index) => (
+              (
+                message,
+                index
+              ) => (
 
                 <Message
                   key={index}
 
-                  role={message.role}
+                  role={
+                    message.role
+                  }
 
-                  text={message.content}
+                  text={
+                    message.content
+                  }
 
                   sources={
                     message.sources || []
+                  }
+
+                  retrieval={
+                    message.retrieval || null
                   }
 
                   route={
                     message.route || null
                   }
 
-                  retrieval={
-                    message.retrieval || null
+                  toolExecution={
+                    message.tool_execution || []
                   }
                 />
 
               )
             )}
 
+
+            {/* =================================================
+                Loading Indicator
+            ================================================= */}
 
             {loading && (
 
@@ -212,7 +248,9 @@ function ChatWindow() {
               >
 
                 <FaRobot
-                  className="text-cyan-400"
+                  className="
+                    text-cyan-400
+                  "
                 />
 
                 <span>
@@ -228,7 +266,9 @@ function ChatWindow() {
         )}
 
 
-        {/* Scroll anchor */}
+        {/* =================================================
+            Scroll Anchor
+        ================================================= */}
 
         <div ref={bottomRef} />
 
@@ -267,7 +307,9 @@ function ChatWindow() {
       />
 
     </div>
+
   );
+
 }
 
 

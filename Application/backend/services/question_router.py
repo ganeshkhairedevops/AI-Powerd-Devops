@@ -38,9 +38,9 @@ class QuestionRouter:
     Routing priority:
 
     1. Explicit live-environment question
-    2. Explicit general knowledge question
-    3. Explicit document question
-    4. Configuration/resource question when documents exist
+    2. Explicit document question
+    3. Configuration/resource question when documents exist
+    4. General knowledge question
     5. General
     """
 
@@ -170,7 +170,6 @@ class QuestionRouter:
         "ansible inventory",
     )
 
-
     # =================================================
     # Explicit document indicators
     # =================================================
@@ -227,52 +226,74 @@ class QuestionRouter:
         "which container",
     )
 
-
     # =================================================
     # Document/configuration indicators
     # =================================================
 
     DOCUMENT_KEYWORDS = (
 
+        # Kubernetes
         "apiversion",
-
         "kind",
-
         "metadata",
-
         "spec",
-
-        "container",
-
-        "containers",
-
         "image",
-
         "replicas",
-
         "namespace",
-
         "port",
-
         "ports",
-
         "volume",
-
         "volumes",
-
         "service",
-
         "deployment",
+        "configmap",
+        "secret",
+        "ingress",
+        "probe",
+        "readiness",
+        "liveness",
 
+        # Kubernetes HPA
+        "hpa",
+        "horizontal pod autoscaler",
+        "minreplicas",
+        "maxreplicas",
+        "averageutilization",
+        "utilization",
+
+        # Docker
         "dockerfile",
+        "docker image",
+        "container port",
+        "restart policy",
+        "restart_policy",
 
+        # Terraform
         "terraform resource",
-
         "terraform variable",
-
         "terraform output",
-    )
+        "terraform provider",
+        "aws region",
+        "instance type",
+        "instance_type",
 
+        # Monitoring
+        "prometheus",
+        "grafana",
+        "alerting",
+        "monitoring",
+
+        # Jenkins
+        "jenkins pipeline",
+        "pipeline",
+        "deploy environment",
+        "deploy_environment",
+
+        # Ansible
+        "ansible",
+        "playbook",
+        "inventory",
+    )
 
     # =================================================
     # General knowledge indicators
@@ -296,7 +317,6 @@ class QuestionRouter:
         "what does",
     )
 
-
     # =================================================
     # Route
     # =================================================
@@ -312,9 +332,9 @@ class QuestionRouter:
         Priority:
 
         1. Explicit live-environment question
-        2. Explicit general knowledge question
-        3. Explicit document question
-        4. Configuration question when documents exist
+        2. Explicit document question
+        3. Configuration/resource question when documents exist
+        4. General knowledge question
         5. General
         """
 
@@ -324,26 +344,18 @@ class QuestionRouter:
             .lower()
         )
 
-
-        # -------------------------------------------------
+        # =================================================
         # Empty question
-        # -------------------------------------------------
+        # =================================================
 
         if not normalized:
 
             return QuestionRoute.GENERAL
 
-
-        # -------------------------------------------------
+        # =================================================
         # Priority 1:
         # Explicit live environment
-        #
-        # Examples:
-        #
-        # Show running Docker containers
-        # Show Kubernetes pods
-        # What is the Kubernetes cluster version?
-        # -------------------------------------------------
+        # =================================================
 
         for phrase in self.LIVE_PHRASES:
 
@@ -351,52 +363,20 @@ class QuestionRouter:
 
                 return QuestionRoute.AGENT
 
-
-        # -------------------------------------------------
+        # =================================================
         # Priority 2:
-        # General knowledge
-        #
-        # Examples:
-        #
-        # What is Kubernetes?
-        # Explain Docker containers
-        # What is Terraform?
-        # -------------------------------------------------
-
-        for phrase in self.GENERAL_PHRASES:
-
-            if phrase.lower() in normalized:
-
-                # -------------------------------------------------
-                # If the question explicitly refers to an uploaded
-                # document, RAG takes priority.
-                #
-                # Example:
-                #
-                # "Explain the Dockerfile"
-                # -------------------------------------------------
-
-                if has_documents:
-
-                    for document_phrase in (
-                        self.DOCUMENT_PHRASES
-                    ):
-
-                        if (
-                            document_phrase.lower()
-                            in normalized
-                        ):
-
-                            return QuestionRoute.RAG
-
-
-                return QuestionRoute.GENERAL
-
-
-        # -------------------------------------------------
-        # Priority 3:
         # Explicit document question
-        # -------------------------------------------------
+        #
+        # This MUST happen before GENERAL_PHRASES.
+        #
+        # Example:
+        #
+        # "What is the namespace of the deployment?"
+        #
+        # contains "what is" AND "namespace".
+        #
+        # Since documents exist, RAG must win.
+        # =================================================
 
         if has_documents:
 
@@ -406,14 +386,10 @@ class QuestionRouter:
 
                     return QuestionRoute.RAG
 
-
-            # -------------------------------------------------
+            # =================================================
+            # Priority 3:
             # Configuration/resource question
-            #
-            # If uploaded documents exist and the question
-            # refers to configuration/resource information,
-            # use RAG.
-            # -------------------------------------------------
+            # =================================================
 
             for keyword in self.DOCUMENT_KEYWORDS:
 
@@ -421,11 +397,21 @@ class QuestionRouter:
 
                     return QuestionRoute.RAG
 
-
-        # -------------------------------------------------
+        # =================================================
         # Priority 4:
+        # General knowledge
+        # =================================================
+
+        for phrase in self.GENERAL_PHRASES:
+
+            if phrase.lower() in normalized:
+
+                return QuestionRoute.GENERAL
+
+        # =================================================
+        # Priority 5:
         # Default
-        # -------------------------------------------------
+        # =================================================
 
         return QuestionRoute.GENERAL
 

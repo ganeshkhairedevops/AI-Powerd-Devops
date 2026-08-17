@@ -5,11 +5,13 @@ Handles:
 
 - Chat
 - Memory
+- Conversation context
 - Intelligent question routing
 - RAG document retrieval
 - RAG source attribution
 - RAG retrieval metadata
 - DevOps agent execution
+- Agent tool execution metadata
 - General LLM questions
 - File uploads
 - Document listing
@@ -31,6 +33,10 @@ from rag.rag_service import rag_service
 from services.question_router import (
     question_router,
     QuestionRoute,
+)
+
+from services.conversation_context import (
+    conversation_context,
 )
 
 
@@ -78,6 +84,153 @@ class ChatRequest(BaseModel):
     conversation_id: str
 
     message: str
+
+
+# =====================================================
+# Agent Tool Metadata
+# =====================================================
+
+def extract_agent_tool_execution(
+    response,
+):
+    """
+    Extract tool execution information from
+    the LangChain agent response.
+
+    Returns:
+
+    [
+        {
+            "tool": "kubectl_pods",
+            "status": "completed",
+            "input": {},
+            "output": "..."
+        }
+    ]
+    """
+
+    executions = []
+
+    messages = response.get(
+        "messages",
+        [],
+    )
+
+    for message in messages:
+
+        # =================================================
+        # Tool Call Message
+        # =================================================
+
+        tool_calls = getattr(
+            message,
+            "tool_calls",
+            None,
+        )
+
+        if tool_calls:
+
+            for tool_call in tool_calls:
+
+                if not isinstance(
+                    tool_call,
+                    dict,
+                ):
+                    continue
+
+                tool_name = (
+                    tool_call.get("name")
+                    or tool_call.get("tool")
+                    or "unknown"
+                )
+
+                tool_input = (
+                    tool_call.get("args")
+                    or tool_call.get("input")
+                    or {}
+                )
+
+                executions.append(
+                    {
+                        "tool": tool_name,
+                        "status": "started",
+                        "input": tool_input,
+                        "output": None,
+                    }
+                )
+
+        # =================================================
+        # Tool Result Message
+        # =================================================
+
+        message_type = getattr(
+            message,
+            "type",
+            "",
+        )
+
+        if message_type == "tool":
+
+            tool_name = getattr(
+                message,
+                "name",
+                None,
+            )
+
+            if not tool_name:
+                tool_name = "unknown"
+
+            tool_output = getattr(
+                message,
+                "content",
+                None,
+            )
+
+            # =================================================
+            # Match Tool Result
+            # =================================================
+
+            matched = False
+
+            for execution in reversed(
+                executions
+            ):
+
+                if (
+                    execution["tool"]
+                    == tool_name
+                    and execution["output"]
+                    is None
+                ):
+
+                    execution["status"] = (
+                        "completed"
+                    )
+
+                    execution["output"] = (
+                        tool_output
+                    )
+
+                    matched = True
+
+                    break
+
+            # =================================================
+            # No Matching Tool Call
+            # =================================================
+
+            if not matched:
+
+                executions.append(
+                    {
+                        "tool": tool_name,
+                        "status": "completed",
+                        "input": {},
+                        "output": tool_output,
+                    }
+                )
+
+    return executions
 
 
 # =====================================================
@@ -131,7 +284,7 @@ def chat(
 
 
     # =================================================
-    # Save user message
+    # Save User Message
     # =================================================
 
     memory.add_message(
@@ -142,7 +295,45 @@ def chat(
 
 
     # =================================================
-    # Check uploaded documents
+    # Retrieve Conversation History
+    # =================================================
+
+    history = memory.get_messages(
+        request.conversation_id,
+    )
+
+
+    # Current user message was just added.
+    # Exclude it from previous history.
+
+    previous_messages = history[:-1]
+
+
+    # =================================================
+    # Resolve Conversation Context
+    # =================================================
+
+    resolved_question = (
+        conversation_context.resolve_question(
+            question=request.message,
+            history=previous_messages,
+        )
+    )
+
+
+    print(
+        "Original Question:",
+        request.message,
+    )
+
+    print(
+        "Resolved Question:",
+        resolved_question,
+    )
+
+
+    # =================================================
+    # Check Uploaded Documents
     # =================================================
 
     try:
@@ -177,7 +368,7 @@ def chat(
     # =================================================
 
     route = question_router.route(
-        question=request.message,
+        question=resolved_question,
         has_documents=has_documents,
     )
 
@@ -189,21 +380,10 @@ def chat(
 
 
     # =================================================
-    # Retrieve Conversation History
+    # Prepare Previous Messages
     # =================================================
 
-    history = memory.get_messages(
-        request.conversation_id,
-    )
-
-
-    # Current user message was just added,
-    # therefore exclude it from previous history.
-
-    previous_messages = history[:-1]
-
     messages = []
-
 
     for msg in previous_messages:
 
@@ -228,6 +408,13 @@ def chat(
 
 
     # =================================================
+    # Default Agent Metadata
+    # =================================================
+
+    agent_tool_execution = []
+
+
+    # =================================================
     # RAG ROUTE
     # =================================================
 
@@ -239,12 +426,12 @@ def chat(
 
 
         # -------------------------------------------------
-        # Retrieve context + sources + metadata
+        # Retrieve Context
         # -------------------------------------------------
 
         rag_result = (
             rag_service.retrieve_context_with_metadata(
-                query=request.message,
+                query=resolved_question,
                 conversation_id=(
                     request.conversation_id
                 ),
@@ -253,7 +440,7 @@ def chat(
 
 
         # -------------------------------------------------
-        # Extract context
+        # Context
         # -------------------------------------------------
 
         rag_context = (
@@ -265,7 +452,7 @@ def chat(
 
 
         # -------------------------------------------------
-        # Extract sources
+        # Sources
         # -------------------------------------------------
 
         rag_sources = (
@@ -277,7 +464,7 @@ def chat(
 
 
         # -------------------------------------------------
-        # Extract retrieval metadata
+        # Retrieval Metadata
         # -------------------------------------------------
 
         rag_retrieval = (
@@ -296,7 +483,6 @@ def chat(
             rag_sources,
         )
 
-
         print(
             "RAG Chunks Retrieved:",
             rag_retrieval.get(
@@ -304,7 +490,6 @@ def chat(
                 0,
             ),
         )
-
 
         print(
             "RAG Retrieval Results:",
@@ -316,21 +501,21 @@ def chat(
 
 
         # -------------------------------------------------
-        # Context found
+        # Answer From Context
         # -------------------------------------------------
 
         if rag_context:
 
             rag_answer = (
                 rag_service.answer_from_context(
-                    question=request.message,
+                    question=resolved_question,
                     context=rag_context,
                 )
             )
 
 
             # -------------------------------------------------
-            # RAG successfully answered
+            # RAG Successfully Answered
             # -------------------------------------------------
 
             if (
@@ -341,20 +526,12 @@ def chat(
                 answer = rag_answer
 
 
-                # -------------------------------------------------
-                # Save assistant response
-                # -------------------------------------------------
-
                 memory.add_message(
                     request.conversation_id,
                     "assistant",
                     answer,
                 )
 
-
-                # -------------------------------------------------
-                # RAG Response
-                # -------------------------------------------------
 
                 return {
                     "success": True,
@@ -364,17 +541,21 @@ def chat(
                     "question": (
                         request.message
                     ),
+                    "resolved_question": (
+                        resolved_question
+                    ),
                     "answer": answer,
                     "route": "rag",
                     "rag_used": True,
                     "agent_used": False,
                     "sources": rag_sources,
                     "retrieval": rag_retrieval,
+                    "tool_execution": [],
                 }
 
 
         # -------------------------------------------------
-        # RAG could not answer
+        # RAG Could Not Answer
         # -------------------------------------------------
 
         print(
@@ -383,16 +564,13 @@ def chat(
         )
 
 
-        # Sources and retrieval metadata are not
-        # returned as final RAG data when the
-        # Agent produces the answer.
-
         rag_sources = []
 
         rag_retrieval = {
             "chunks_retrieved": 0,
             "results": [],
         }
+
 
         route = QuestionRoute.AGENT
 
@@ -409,7 +587,7 @@ def chat(
 
 
         response = llm.invoke(
-            request.message,
+            resolved_question,
         )
 
 
@@ -429,20 +607,12 @@ def chat(
             ).strip()
 
 
-        # -------------------------------------------------
-        # Save assistant response
-        # -------------------------------------------------
-
         memory.add_message(
             request.conversation_id,
             "assistant",
             answer,
         )
 
-
-        # -------------------------------------------------
-        # General Response
-        # -------------------------------------------------
 
         return {
             "success": True,
@@ -451,6 +621,9 @@ def chat(
             ),
             "question": (
                 request.message
+            ),
+            "resolved_question": (
+                resolved_question
             ),
             "answer": answer,
             "route": "general",
@@ -461,6 +634,7 @@ def chat(
                 "chunks_retrieved": 0,
                 "results": [],
             },
+            "tool_execution": [],
         }
 
 
@@ -471,7 +645,7 @@ def chat(
     messages.append(
         (
             "user",
-            request.message,
+            resolved_question,
         )
     )
 
@@ -481,17 +655,73 @@ def chat(
     )
 
 
-    response = agent.invoke(
-        {
-            "messages": messages,
-        }
-    )
+    try:
+
+        response = agent.invoke(
+            {
+                "messages": messages,
+            }
+        )
 
 
-    answer = (
-        response["messages"][-1]
-        .content
-    )
+        # =================================================
+        # Debug Raw Agent Response
+        # =================================================
+
+        print("=" * 60)
+        print("AGENT RAW RESPONSE")
+        print(response)
+        print("=" * 60)
+
+
+        # =================================================
+        # Extract Tool Execution Metadata
+        # =================================================
+
+        agent_tool_execution = (
+            extract_agent_tool_execution(
+                response
+            )
+        )
+
+
+        print(
+            "Agent Tool Execution:",
+            agent_tool_execution,
+        )
+
+
+        # =================================================
+        # Extract Final Answer
+        # =================================================
+
+        answer = (
+            response["messages"][-1]
+            .content
+        )
+
+
+    except Exception as exc:
+
+        print(
+            "Agent execution failed:",
+            str(exc),
+        )
+
+
+        answer = (
+            "Unable to execute the DevOps agent."
+        )
+
+
+        agent_tool_execution = [
+            {
+                "tool": "unknown",
+                "status": "failed",
+                "input": {},
+                "output": str(exc),
+            }
+        ]
 
 
     # =================================================
@@ -515,6 +745,9 @@ def chat(
             request.conversation_id
         ),
         "question": request.message,
+        "resolved_question": (
+            resolved_question
+        ),
         "answer": answer,
         "route": "agent",
         "rag_used": False,
@@ -524,6 +757,9 @@ def chat(
             "chunks_retrieved": 0,
             "results": [],
         },
+        "tool_execution": (
+            agent_tool_execution
+        ),
     }
 
 
@@ -735,10 +971,6 @@ def delete_document(
 
             file_path.unlink()
 
-
-        # -------------------------------------------------
-        # Response
-        # -------------------------------------------------
 
         return {
             "success": True,
