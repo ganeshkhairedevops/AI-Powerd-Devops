@@ -1,6 +1,8 @@
 import { useState } from "react";
+
 import MarkdownRenderer from "./chat/MarkdownRenderer";
 import Avatar from "./chat/Avatar";
+
 import {
   FaFileAlt,
   FaChevronDown,
@@ -9,7 +11,12 @@ import {
   FaRoute,
   FaListOl,
   FaChartLine,
+  FaTools,
+  FaCheckCircle,
+  FaExclamationCircle,
+  FaCode,
 } from "react-icons/fa";
+
 
 function Message({
   role,
@@ -17,26 +24,61 @@ function Message({
   sources = [],
   retrieval = null,
   route = null,
+  toolExecution = [],
 }) {
-  const isUser = role === "user";
 
-  const [showDetails, setShowDetails] =
-    useState(false);
+  const isUser =
+    role === "user";
+
+
+  // =====================================================
+  // Details State
+  // =====================================================
+
+  const [
+    showDetails,
+    setShowDetails,
+  ] = useState(false);
+
+
+  // =====================================================
+  // RAG Sources
+  // =====================================================
 
   const hasSources =
     !isUser &&
     Array.isArray(sources) &&
     sources.length > 0;
 
+
+  // =====================================================
+  // RAG Retrieval
+  // =====================================================
+
   const hasRetrieval =
     !isUser &&
     route === "rag" &&
     retrieval &&
     typeof retrieval === "object" &&
-    Array.isArray(retrieval.results) &&
+    Array.isArray(
+      retrieval.results
+    ) &&
     retrieval.results.length > 0;
 
+
+  // =====================================================
+  // Agent Tool Execution
+  // =====================================================
+
+  const hasToolExecution =
+    !isUser &&
+    route === "agent" &&
+    Array.isArray(toolExecution) &&
+    toolExecution.length > 0;
+
+
   return (
+
     <div
       className={`mb-6 flex ${
         isUser
@@ -44,6 +86,7 @@ function Message({
           : "justify-start"
       }`}
     >
+
       <div
         className={`flex max-w-5xl items-start gap-3 ${
           isUser
@@ -51,7 +94,14 @@ function Message({
             : "flex-row"
         }`}
       >
+
+
+        {/* =================================================
+            Avatar
+        ================================================= */}
+
         <Avatar role={role} />
+
 
         <div
           className={`rounded-xl px-4 py-3 shadow-md ${
@@ -60,77 +110,136 @@ function Message({
               : "border border-slate-700 bg-slate-800 text-gray-100"
           }`}
         >
-          {/* ================================================= */}
-          {/* Message */}
-          {/* ================================================= */}
+
+
+          {/* =================================================
+              Message
+          ================================================= */}
 
           {isUser ? (
+
             <p className="whitespace-pre-wrap">
               {text}
             </p>
+
           ) : (
+
             <div className="prose prose-invert max-w-none">
+
               <MarkdownRenderer
                 content={text}
               />
+
             </div>
+
           )}
 
-          {/* ================================================= */}
-          {/* RAG Sources */}
-          {/* ================================================= */}
+
+          {/* =================================================
+              RAG Sources
+          ================================================= */}
 
           {hasSources && (
+
             <div className="mt-4 border-t border-slate-700 pt-3">
 
               <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
                 Sources
               </p>
 
+
               <div className="space-y-2">
 
                 {sources.map(
-                  (source, index) => (
+                  (
+                    source,
+                    index
+                  ) => (
+
                     <div
-                      key={`${source.filename}-${source.chunk}-${index}`}
-                      className="flex items-center gap-3 rounded-lg bg-slate-900 px-3 py-2"
+                      key={
+                        `${source.filename}-${source.chunk}-${index}`
+                      }
+
+                      className="
+                        flex
+                        items-center
+                        gap-3
+                        rounded-lg
+                        bg-slate-900
+                        px-3
+                        py-2
+                      "
                     >
-                      <FaFileAlt className="text-cyan-400" />
+
+                      <FaFileAlt
+                        className="
+                          text-cyan-400
+                        "
+                      />
+
 
                       <div className="flex flex-col">
+
                         <span className="text-sm text-slate-200">
+
                           {source.filename}
+
                         </span>
 
+
                         <span className="text-xs text-slate-500">
+
                           Document Chunk{" "}
+
                           {source.chunk}
+
                         </span>
+
                       </div>
+
                     </div>
+
                   )
                 )}
 
               </div>
+
             </div>
+
           )}
 
-          {/* ================================================= */}
-          {/* RAG Debug / Retrieval Details */}
-          {/* ================================================= */}
+
+          {/* =================================================
+              RAG Details
+          ================================================= */}
 
           {hasRetrieval && (
-            <div className="mt-3 border-t border-slate-700 pt-3">
 
-              {/* Details Header */}
+            <div
+              className="
+                mt-3
+                border-t
+                border-slate-700
+                pt-3
+              "
+            >
+
+
+              {/* =================================================
+                  RAG Details Header
+              ================================================= */}
 
               <button
                 type="button"
+
                 onClick={() =>
                   setShowDetails(
-                    previous => !previous
+                    previous =>
+                      !previous
                   )
                 }
+
                 className="
                   flex
                   w-full
@@ -144,82 +253,207 @@ function Message({
                   hover:bg-slate-900
                 "
               >
+
                 <div className="flex items-center gap-2">
 
-                  <FaDatabase className="text-cyan-400" />
+                  <FaDatabase
+                    className="
+                      text-cyan-400
+                    "
+                  />
 
-                  <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                  <span
+                    className="
+                      text-xs
+                      font-semibold
+                      uppercase
+                      tracking-wide
+                      text-slate-400
+                    "
+                  >
                     RAG Details
                   </span>
 
                 </div>
 
+
                 {showDetails ? (
-                  <FaChevronDown className="text-xs text-slate-500" />
+
+                  <FaChevronDown
+                    className="
+                      text-xs
+                      text-slate-500
+                    "
+                  />
+
                 ) : (
-                  <FaChevronRight className="text-xs text-slate-500" />
+
+                  <FaChevronRight
+                    className="
+                      text-xs
+                      text-slate-500
+                    "
+                  />
+
                 )}
 
               </button>
 
 
-              {/* Details Content */}
+              {/* =================================================
+                  RAG Details Content
+              ================================================= */}
 
               {showDetails && (
-                <div className="mt-3 space-y-3">
 
-                  {/* Route */}
+                <div
+                  className="
+                    mt-3
+                    space-y-3
+                  "
+                >
 
-                  <div className="flex items-center justify-between rounded-lg bg-slate-900 px-3 py-2">
+
+                  {/* =================================================
+                      Route
+                  ================================================= */}
+
+                  <div
+                    className="
+                      flex
+                      items-center
+                      justify-between
+                      rounded-lg
+                      bg-slate-900
+                      px-3
+                      py-2
+                    "
+                  >
 
                     <div className="flex items-center gap-2">
 
-                      <FaRoute className="text-cyan-400" />
+                      <FaRoute
+                        className="
+                          text-cyan-400
+                        "
+                      />
 
-                      <span className="text-xs text-slate-400">
+                      <span
+                        className="
+                          text-xs
+                          text-slate-400
+                        "
+                      >
                         Route
                       </span>
 
                     </div>
 
-                    <span className="text-xs font-medium uppercase text-cyan-400">
+
+                    <span
+                      className="
+                        text-xs
+                        font-medium
+                        uppercase
+                        text-cyan-400
+                      "
+                    >
                       {route || "rag"}
                     </span>
 
                   </div>
 
 
-                  {/* Chunks Retrieved */}
+                  {/* =================================================
+                      Chunks Retrieved
+                  ================================================= */}
 
-                  <div className="flex items-center justify-between rounded-lg bg-slate-900 px-3 py-2">
+                  <div
+                    className="
+                      flex
+                      items-center
+                      justify-between
+                      rounded-lg
+                      bg-slate-900
+                      px-3
+                      py-2
+                    "
+                  >
 
                     <div className="flex items-center gap-2">
 
-                      <FaListOl className="text-cyan-400" />
+                      <FaListOl
+                        className="
+                          text-cyan-400
+                        "
+                      />
 
-                      <span className="text-xs text-slate-400">
+                      <span
+                        className="
+                          text-xs
+                          text-slate-400
+                        "
+                      >
                         Chunks Retrieved
                       </span>
 
                     </div>
 
-                    <span className="text-xs font-medium text-slate-200">
-                      {retrieval.chunks_retrieved ??
-                        retrieval.results.length}
+
+                    <span
+                      className="
+                        text-xs
+                        font-medium
+                        text-slate-200
+                      "
+                    >
+
+                      {
+                        retrieval.chunks_retrieved ??
+                        retrieval.results.length
+                      }
+
                     </span>
 
                   </div>
 
 
-                  {/* Retrieval Results */}
+                  {/* =================================================
+                      Retrieval Results
+                  ================================================= */}
 
-                  <div className="rounded-lg bg-slate-900 p-3">
+                  <div
+                    className="
+                      rounded-lg
+                      bg-slate-900
+                      p-3
+                    "
+                  >
 
-                    <div className="mb-2 flex items-center gap-2">
+                    <div
+                      className="
+                        mb-2
+                        flex
+                        items-center
+                        gap-2
+                      "
+                    >
 
-                      <FaChartLine className="text-cyan-400" />
+                      <FaChartLine
+                        className="
+                          text-cyan-400
+                        "
+                      />
 
-                      <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                      <span
+                        className="
+                          text-xs
+                          font-semibold
+                          uppercase
+                          tracking-wide
+                          text-slate-400
+                        "
+                      >
                         Retrieval Results
                       </span>
 
@@ -229,25 +463,71 @@ function Message({
                     <div className="space-y-2">
 
                       {retrieval.results.map(
-                        (result, index) => (
+                        (
+                          result,
+                          index
+                        ) => (
+
                           <div
-                            key={`${result.filename}-${result.chunk}-${index}`}
-                            className="rounded-lg border border-slate-800 bg-slate-950 px-3 py-2"
+                            key={
+                              `${result.filename}-${result.chunk}-${index}`
+                            }
+
+                            className="
+                              rounded-lg
+                              border
+                              border-slate-800
+                              bg-slate-950
+                              px-3
+                              py-2
+                            "
                           >
 
-                            <div className="flex items-center justify-between gap-3">
+                            <div
+                              className="
+                                flex
+                                items-center
+                                justify-between
+                                gap-3
+                              "
+                            >
 
-                              <div className="flex min-w-0 items-center gap-2">
+                              <div
+                                className="
+                                  flex
+                                  min-w-0
+                                  items-center
+                                  gap-2
+                                "
+                              >
 
-                                <FaFileAlt className="shrink-0 text-slate-500" />
+                                <FaFileAlt
+                                  className="
+                                    shrink-0
+                                    text-slate-500
+                                  "
+                                />
 
-                                <span className="truncate text-xs text-slate-300">
+                                <span
+                                  className="
+                                    truncate
+                                    text-xs
+                                    text-slate-300
+                                  "
+                                >
                                   {result.filename}
                                 </span>
 
                               </div>
 
-                              <span className="shrink-0 text-xs text-slate-500">
+
+                              <span
+                                className="
+                                  shrink-0
+                                  text-xs
+                                  text-slate-500
+                                "
+                              >
                                 Chunk{" "}
                                 {result.chunk}
                               </span>
@@ -259,22 +539,44 @@ function Message({
 
                             {result.score !== null &&
                               result.score !== undefined && (
-                                <div className="mt-2 flex items-center justify-between">
 
-                                  <span className="text-xs text-slate-500">
+                                <div
+                                  className="
+                                    mt-2
+                                    flex
+                                    items-center
+                                    justify-between
+                                  "
+                                >
+
+                                  <span
+                                    className="
+                                      text-xs
+                                      text-slate-500
+                                    "
+                                  >
                                     Distance Score
                                   </span>
 
-                                  <span className="font-mono text-xs text-cyan-400">
+
+                                  <span
+                                    className="
+                                      font-mono
+                                      text-xs
+                                      text-cyan-400
+                                    "
+                                  >
                                     {Number(
                                       result.score
                                     ).toFixed(4)}
                                   </span>
 
                                 </div>
+
                               )}
 
                           </div>
+
                         )
                       )}
 
@@ -283,15 +585,450 @@ function Message({
                   </div>
 
                 </div>
+
               )}
 
             </div>
+
+          )}
+
+
+          {/* =================================================
+              Agent Tool Execution
+          ================================================= */}
+
+          {hasToolExecution && (
+
+            <div
+              className="
+                mt-3
+                border-t
+                border-slate-700
+                pt-3
+              "
+            >
+
+
+              {/* =================================================
+                  Agent Details Header
+              ================================================= */}
+
+              <button
+                type="button"
+
+                onClick={() =>
+                  setShowDetails(
+                    previous =>
+                      !previous
+                  )
+                }
+
+                className="
+                  flex
+                  w-full
+                  items-center
+                  justify-between
+                  rounded-lg
+                  px-2
+                  py-2
+                  text-left
+                  transition
+                  hover:bg-slate-900
+                "
+              >
+
+                <div className="flex items-center gap-2">
+
+                  <FaTools
+                    className="
+                      text-cyan-400
+                    "
+                  />
+
+                  <span
+                    className="
+                      text-xs
+                      font-semibold
+                      uppercase
+                      tracking-wide
+                      text-slate-400
+                    "
+                  >
+                    Agent Details
+                  </span>
+
+                </div>
+
+
+                {showDetails ? (
+
+                  <FaChevronDown
+                    className="
+                      text-xs
+                      text-slate-500
+                    "
+                  />
+
+                ) : (
+
+                  <FaChevronRight
+                    className="
+                      text-xs
+                      text-slate-500
+                    "
+                  />
+
+                )}
+
+              </button>
+
+
+              {/* =================================================
+                  Agent Details Content
+              ================================================= */}
+
+              {showDetails && (
+
+                <div
+                  className="
+                    mt-3
+                    space-y-3
+                  "
+                >
+
+
+                  {/* =================================================
+                      Route
+                  ================================================= */}
+
+                  <div
+                    className="
+                      flex
+                      items-center
+                      justify-between
+                      rounded-lg
+                      bg-slate-900
+                      px-3
+                      py-2
+                    "
+                  >
+
+                    <div className="flex items-center gap-2">
+
+                      <FaRoute
+                        className="
+                          text-cyan-400
+                        "
+                      />
+
+                      <span
+                        className="
+                          text-xs
+                          text-slate-400
+                        "
+                      >
+                        Route
+                      </span>
+
+                    </div>
+
+
+                    <span
+                      className="
+                        text-xs
+                        font-medium
+                        uppercase
+                        text-cyan-400
+                      "
+                    >
+                      {route || "agent"}
+                    </span>
+
+                  </div>
+
+
+                  {/* =================================================
+                      Tool Executions
+                  ================================================= */}
+
+                  {toolExecution.map(
+                    (
+                      execution,
+                      index
+                    ) => {
+
+                      const status =
+                        execution.status ||
+                        "unknown";
+
+
+                      const isCompleted =
+                        status ===
+                        "completed";
+
+
+                      const isFailed =
+                        status ===
+                        "failed";
+
+
+                      return (
+
+                        <div
+                          key={
+                            `${execution.tool}-${index}`
+                          }
+
+                          className="
+                            rounded-lg
+                            border
+                            border-slate-800
+                            bg-slate-950
+                            p-3
+                          "
+                        >
+
+
+                          {/* =================================================
+                              Tool Name
+                          ================================================= */}
+
+                          <div
+                            className="
+                              flex
+                              items-center
+                              justify-between
+                              gap-3
+                            "
+                          >
+
+                            <div
+                              className="
+                                flex
+                                items-center
+                                gap-2
+                              "
+                            >
+
+                              <FaTools
+                                className="
+                                  text-cyan-400
+                                "
+                              />
+
+                              <span
+                                className="
+                                  text-xs
+                                  text-slate-400
+                                "
+                              >
+                                Tool
+                              </span>
+
+                            </div>
+
+
+                            <span
+                              className="
+                                font-mono
+                                text-xs
+                                text-slate-200
+                              "
+                            >
+                              {execution.tool ||
+                                "unknown"}
+                            </span>
+
+                          </div>
+
+
+                          {/* =================================================
+                              Status
+                          ================================================= */}
+
+                          <div
+                            className="
+                              mt-2
+                              flex
+                              items-center
+                              justify-between
+                            "
+                          >
+
+                            <div
+                              className="
+                                flex
+                                items-center
+                                gap-2
+                              "
+                            >
+
+                              {isCompleted ? (
+
+                                <FaCheckCircle
+                                  className="
+                                    text-green-400
+                                  "
+                                />
+
+                              ) : isFailed ? (
+
+                                <FaExclamationCircle
+                                  className="
+                                    text-red-400
+                                  "
+                                />
+
+                              ) : (
+
+                                <FaCode
+                                  className="
+                                    text-yellow-400
+                                  "
+                                />
+
+                              )}
+
+
+                              <span
+                                className="
+                                  text-xs
+                                  text-slate-400
+                                "
+                              >
+                                Status
+                              </span>
+
+                            </div>
+
+
+                            <span
+                              className={`
+                                text-xs
+                                font-medium
+                                uppercase
+                                ${
+                                  isCompleted
+                                    ? "text-green-400"
+                                    : isFailed
+                                    ? "text-red-400"
+                                    : "text-yellow-400"
+                                }
+                              `}
+                            >
+                              {status}
+                            </span>
+
+                          </div>
+
+
+                          {/* =================================================
+                              Tool Input
+                          ================================================= */}
+
+                          {execution.input &&
+                            typeof execution.input ===
+                              "object" &&
+                            Object.keys(
+                              execution.input
+                            ).length > 0 && (
+
+                              <div className="mt-3">
+
+                                <p
+                                  className="
+                                    mb-1
+                                    text-xs
+                                    text-slate-500
+                                  "
+                                >
+                                  Input
+                                </p>
+
+
+                                <pre
+                                  className="
+                                    overflow-x-auto
+                                    rounded-lg
+                                    bg-slate-900
+                                    p-2
+                                    text-xs
+                                    text-slate-300
+                                  "
+                                >
+                                  {JSON.stringify(
+                                    execution.input,
+                                    null,
+                                    2
+                                  )}
+                                </pre>
+
+                              </div>
+
+                            )}
+
+
+                          {/* =================================================
+                              Tool Output
+                          ================================================= */}
+
+                          {execution.output && (
+
+                            <div className="mt-3">
+
+                              <p
+                                className="
+                                  mb-1
+                                  text-xs
+                                  text-slate-500
+                                "
+                              >
+                                Tool Output
+                              </p>
+
+
+                              <pre
+                                className="
+                                  max-h-60
+                                  overflow-auto
+                                  whitespace-pre-wrap
+                                  rounded-lg
+                                  bg-slate-900
+                                  p-2
+                                  text-xs
+                                  text-slate-300
+                                "
+                              >
+                                {execution.output}
+                              </pre>
+
+                            </div>
+
+                          )}
+
+                        </div>
+
+                      );
+
+                    }
+                  )}
+
+                </div>
+
+              )}
+
+            </div>
+
           )}
 
         </div>
+
       </div>
+
     </div>
+
   );
 }
+
 
 export default Message;
