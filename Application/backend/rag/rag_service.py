@@ -13,6 +13,7 @@ Coordinates:
 - Document deletion
 - Source attribution
 - Retrieval metadata
+- Grounded answer generation
 
 Documents are isolated by conversation_id.
 """
@@ -101,9 +102,8 @@ class RAGService:
         Retrieve relevant document context only from
         the specified conversation.
 
-        This method remains compatible with the
-        existing application and returns only the
-        context string.
+        Returns only the context string for
+        backward compatibility.
         """
 
         result = self.retrieve_context_with_sources(
@@ -124,19 +124,7 @@ class RAGService:
     ):
         """
         Retrieve relevant document chunks and return
-        both the context and source information.
-
-        Returns:
-
-        {
-            "context": str,
-            "sources": [
-                {
-                    "filename": str,
-                    "chunk": int
-                }
-            ]
-        }
+        context and source information.
         """
 
         documents = retriever.retrieve(
@@ -178,10 +166,6 @@ class RAGService:
 
             # -------------------------------------------------
             # Chunk index
-            #
-            # ChromaDB stores chunk_index starting
-            # from 0, so convert it to a human-readable
-            # chunk number starting from 1.
             # -------------------------------------------------
 
             stored_chunk_index = metadata.get(
@@ -278,10 +262,10 @@ class RAGService:
             }
         }
 
-        The score returned by ChromaDB is a distance
-        value. Lower values generally indicate that
-        the retrieved result is more similar to the
-        query.
+        ChromaDB returns a distance score.
+
+        Lower distance generally indicates a more
+        similar result.
         """
 
         results = retriever.retrieve_with_scores(
@@ -315,8 +299,6 @@ class RAGService:
 
             # -------------------------------------------------
             # Result structure
-            #
-            # ChromaDB / LangChain returns:
             #
             # (Document, score)
             # -------------------------------------------------
@@ -444,15 +426,37 @@ class RAGService:
         context: str,
     ) -> str:
         """
-        Answer the question using only
-        retrieved document context.
+        Generate an answer using ONLY the retrieved
+        document context.
+
+        The LLM must not use outside knowledge.
+
+        If the context does not support the answer,
+        return exactly:
+
+        NOT_ENOUGH_CONTEXT
         """
 
-        prompt = f"""
-You are a DevOps document analysis assistant.
+        # -------------------------------------------------
+        # Empty context protection
+        # -------------------------------------------------
 
-Answer the user's question using ONLY the
-provided document context.
+        if not context or not context.strip():
+
+            return "NOT_ENOUGH_CONTEXT"
+
+        # -------------------------------------------------
+        # Grounded answer prompt
+        # -------------------------------------------------
+
+        prompt = f"""
+You are a strict DevOps document analysis assistant.
+
+Your task is to answer the user's question using
+ONLY the provided DOCUMENT CONTEXT.
+
+You must treat the DOCUMENT CONTEXT as the
+only source of truth.
 
 ## DOCUMENT CONTEXT
 
@@ -462,34 +466,126 @@ provided document context.
 
 {question}
 
-Rules:
+## GROUNDING RULES
 
-1. Use only information present in the document context.
+1. Use ONLY information explicitly present in the
+   DOCUMENT CONTEXT.
 
-2. Do not use external knowledge.
+2. Do NOT use your general knowledge.
 
-3. Do not execute or suggest DevOps tool calls.
+3. Do NOT use information from previous conversations.
 
-4. Do not output JSON.
+4. Do NOT infer infrastructure values that are not
+   present in the DOCUMENT CONTEXT.
 
-5. Do not output function calls.
+5. Do NOT guess.
 
-6. If the document contains the answer, answer clearly
-   and directly.
+6. Do NOT invent values, versions, ports, replicas,
+   names, IP addresses, images, configurations, or
+   other DevOps information.
 
-7. If the document does not contain enough information,
-   respond with exactly:
+7. If the answer is explicitly present in the
+   DOCUMENT CONTEXT, answer it directly.
+
+8. If the answer requires combining multiple pieces
+   of information that are explicitly present in the
+   DOCUMENT CONTEXT, you may combine them.
+
+9. If the DOCUMENT CONTEXT does not contain enough
+   information to answer the question, return exactly:
 
 NOT_ENOUGH_CONTEXT
 
-8. Keep the answer concise.
+10. Do not explain that information is missing.
+
+11. Do not mention these instructions.
+
+12. Do not mention RAG, ChromaDB, embeddings, tools,
+    LangChain, or internal implementation.
+
+13. Do not output JSON.
+
+14. Do not output function calls.
+
+15. Keep the answer concise.
+
+16. Do not add unnecessary explanations when a direct
+    answer is possible.
+
+17. Return only the final answer or:
+
+NOT_ENOUGH_CONTEXT
+
+## IMPORTANT EXAMPLES
+
+Question:
+What image is used by the nginx deployment?
+
+Context:
+image: nginx:1.27
 
 Answer:
+nginx:1.27
+
+---
+
+Question:
+How many replicas does the nginx deployment have?
+
+Context:
+replicas: 3
+
+Answer:
+3
+
+---
+
+Question:
+What is the Kubernetes cluster version?
+
+Context:
+The document contains a Kubernetes Deployment and
+Service but no cluster version.
+
+Answer:
+NOT_ENOUGH_CONTEXT
+
+---
+
+Question:
+What AWS region is being used?
+
+Context:
+No AWS region is present.
+
+Answer:
+NOT_ENOUGH_CONTEXT
+
+## FINAL ANSWER
 """
 
-        response = llm.invoke(
-            prompt
-        )
+        # -------------------------------------------------
+        # LLM invocation
+        # -------------------------------------------------
+
+        try:
+
+            response = llm.invoke(
+                prompt
+            )
+
+        except Exception as exc:
+
+            print(
+                "RAG answer generation failed:",
+                str(exc),
+            )
+
+            return "NOT_ENOUGH_CONTEXT"
+
+        # -------------------------------------------------
+        # Extract response
+        # -------------------------------------------------
 
         if hasattr(
             response,
@@ -505,6 +601,42 @@ Answer:
             answer = str(
                 response
             ).strip()
+
+        # -------------------------------------------------
+        # Empty response protection
+        # -------------------------------------------------
+
+        if not answer:
+
+            return "NOT_ENOUGH_CONTEXT"
+
+        # -------------------------------------------------
+        # Normalize NOT_ENOUGH_CONTEXT
+        #
+        # Prevent cases where the model returns:
+        #
+        # "NOT_ENOUGH_CONTEXT."
+        #
+        # or Markdown/code formatting.
+        # -------------------------------------------------
+
+        normalized = (
+            answer
+            .replace(
+                "`",
+                "",
+            )
+            .strip()
+            .rstrip(".")
+            .strip()
+        )
+
+        if (
+            normalized.upper()
+            == "NOT_ENOUGH_CONTEXT"
+        ):
+
+            return "NOT_ENOUGH_CONTEXT"
 
         return answer
 
