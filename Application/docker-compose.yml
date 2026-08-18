@@ -1,5 +1,9 @@
 services:
 
+  # ===================================================
+  # Ollama
+  # ===================================================
+
   ollama:
     image: ollama/ollama:latest
     container_name: devops-ollama
@@ -16,6 +20,10 @@ services:
     restart: unless-stopped
 
 
+  # ===================================================
+  # Backend
+  # ===================================================
+
   backend:
     build:
       context: ./backend
@@ -28,14 +36,46 @@ services:
       - "8000:8000"
 
     environment:
+      # -----------------------------------------------
+      # Ollama
+      # -----------------------------------------------
+
       OLLAMA_BASE_URL: http://ollama:11434
       OLLAMA_CHAT_MODEL: llama3.1:8b
       OLLAMA_EMBED_MODEL: nomic-embed-text
 
+      # -----------------------------------------------
+      # Kubernetes
+      # -----------------------------------------------
+
+      KUBECONFIG: /tmp/kube/config
     volumes:
+
+      # -----------------------------------------------
+      # RAG
+      # -----------------------------------------------
+
       - chroma_data:/app/chroma_db
       - uploads_data:/app/uploads
+
+      # -----------------------------------------------
+      # Docker Engine
+      # -----------------------------------------------
+
       - /var/run/docker.sock:/var/run/docker.sock
+
+      # -----------------------------------------------
+      # Kubernetes configuration
+      #
+      # IMPORTANT:
+      # This assumes your Windows kubeconfig is here:
+      #
+      # C:\Users\Administrator\.kube\config
+      #
+      # We will verify this before relying on it.
+      # -----------------------------------------------
+
+      - ${USERPROFILE}/.kube:/root/.kube:ro
 
     depends_on:
       - ollama
@@ -43,7 +83,14 @@ services:
     restart: unless-stopped
 
 
+# =====================================================
+# Volumes
+# =====================================================
+
 volumes:
+
   ollama_data:
+
   chroma_data:
+
   uploads_data:

@@ -47,6 +47,23 @@ RUN install -m 0755 -d /etc/apt/keyrings && \
 
 
 # =====================================================
+# Kubernetes CLI
+# =====================================================
+
+RUN curl -fsSL -o /usr/local/bin/kubectl \
+    https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl && \
+    chmod +x /usr/local/bin/kubectl
+
+
+# =====================================================
+# Verify DevOps CLIs
+# =====================================================
+
+RUN docker --version && \
+    kubectl version --client
+
+
+# =====================================================
 # Python Dependencies
 # =====================================================
 
@@ -73,5 +90,8 @@ EXPOSE 8000
 # =====================================================
 # Start FastAPI
 # =====================================================
+RUN chmod +x /app/docker-entrypoint.sh
+
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
 
 CMD ["uvicorn", "api:app", "--host", "0.0.0.0", "--port", "8000"]
