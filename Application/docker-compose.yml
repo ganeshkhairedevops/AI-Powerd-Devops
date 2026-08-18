@@ -36,45 +36,21 @@ services:
       - "8000:8000"
 
     environment:
-      # -----------------------------------------------
-      # Ollama
-      # -----------------------------------------------
-
       OLLAMA_BASE_URL: http://ollama:11434
       OLLAMA_CHAT_MODEL: llama3.1:8b
       OLLAMA_EMBED_MODEL: nomic-embed-text
-
-      # -----------------------------------------------
-      # Kubernetes
-      # -----------------------------------------------
-
       KUBECONFIG: /tmp/kube/config
+
     volumes:
 
-      # -----------------------------------------------
       # RAG
-      # -----------------------------------------------
-
       - chroma_data:/app/chroma_db
       - uploads_data:/app/uploads
 
-      # -----------------------------------------------
-      # Docker Engine
-      # -----------------------------------------------
-
+      # Docker
       - /var/run/docker.sock:/var/run/docker.sock
 
-      # -----------------------------------------------
-      # Kubernetes configuration
-      #
-      # IMPORTANT:
-      # This assumes your Windows kubeconfig is here:
-      #
-      # C:\Users\Administrator\.kube\config
-      #
-      # We will verify this before relying on it.
-      # -----------------------------------------------
-
+      # Kubernetes
       - ${USERPROFILE}/.kube:/root/.kube:ro
 
     depends_on:
@@ -83,8 +59,29 @@ services:
     restart: unless-stopped
 
 
+  # ===================================================
+  # Frontend
+  # ===================================================
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+
+    image: devops-ai-frontend:latest
+    container_name: devops-ai-frontend
+
+    ports:
+      - "3000:80"
+
+    depends_on:
+      - backend
+
+    restart: unless-stopped
+
+
 # =====================================================
-# Volumes
+# Persistent Volumes
 # =====================================================
 
 volumes:
