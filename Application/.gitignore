@@ -20,6 +20,7 @@ env/
 .vscode/
 .idea/
 .DS_Store
+Thumbs.db
 
 # Claude Code local settings
 .claude/
@@ -44,3 +45,12 @@ backend/uploads/*
 
 backend/chroma_db/*
 !backend/chroma_db/.gitkeep
+
+# Docker
+*.log
+# Kubernetes
+.kube/
+
+# Frontend
+frontend/node_modules/
+frontend/dist/

@@ -64,3 +64,13 @@ Application/backend/uploads/*
 
 Application/backend/chroma_db/*
 !Application/backend/chroma_db/.gitkeep
+
+# Docker
+*.log
+# Docker
+*.log
+# Kubernetes
+.kube/
+# Frontend
+frontend/node_modules/
+frontend/dist/
