@@ -36,13 +36,22 @@ services:
       - "${APP_PORT:-8000}:8000"
 
     environment:
+
+      # =================================================
+      # Ollama
+      # =================================================
+
       OLLAMA_BASE_URL: http://ollama:11434
       OLLAMA_CHAT_MODEL: ${OLLAMA_CHAT_MODEL:-llama3.1:8b}
       OLLAMA_EMBED_MODEL: ${OLLAMA_EMBED_MODEL:-nomic-embed-text}
+
+
+      # =================================================
       # Kubernetes
+      # =================================================
+
       KUBECONFIG: /tmp/kube/config
-      KUBERNETES_API_HOST: ${KUBERNETES_API_HOST:-host.docker.internal}
-      KUBERNETES_API_PORT: ${KUBERNETES_API_PORT:-65095}
+
 
     volumes:
 
@@ -67,8 +76,12 @@ services:
 
       - ${KUBE_CONFIG_PATH}:/root/.kube:ro
 
+
+    # Provides host.docker.internal on Linux Docker
+    # and works with Docker Desktop as well.
     extra_hosts:
       - "host.docker.internal:host-gateway"
+
 
     depends_on:
       - ollama
