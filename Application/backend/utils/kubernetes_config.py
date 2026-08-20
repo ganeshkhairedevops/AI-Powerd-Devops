@@ -1,25 +1,36 @@
 """
-Kubernetes Runtime Configuration
+Universal Kubernetes Runtime Configuration
 
 Prepares a kubeconfig for execution from inside the
 DevOps AI Agent container.
 
-Behavior:
+Supported environments:
 
-- Normal Kubernetes endpoints are preserved.
-- localhost / 127.0.0.1 endpoints are adapted when
-  running inside Docker.
-- Kubernetes API port is read directly from kubeconfig.
-- Docker Desktop localhost endpoints are handled
-  automatically.
+- Docker Desktop Kubernetes
+- Linux + Kind
+- Amazon EKS
+- Other remote Kubernetes clusters
+- Local Kubernetes installations
+- Any Kubernetes endpoint already reachable from the container
+
+Design principles:
+
+- Never modify the original kubeconfig.
+- Preserve remote Kubernetes endpoints.
+- Adapt Docker Desktop localhost endpoints.
+- Detect Kind dynamically through Docker.
+- Do not hardcode Kind ports.
+- Do not require platform-specific docker-compose files.
 """
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import shutil
 import socket
+import subprocess
 from pathlib import Path
 from urllib.parse import urlparse, urlunparse
 
@@ -36,13 +47,29 @@ RUNTIME_CONFIG = RUNTIME_DIR / "config"
 
 
 # =====================================================
+# Constants
+# =====================================================
+
+LOCALHOSTS = {
+    "127.0.0.1",
+    "localhost",
+    "::1",
+}
+
+DOCKER_HOSTNAME = "host.docker.internal"
+
+KIND_CONTROL_PLANE_NAMES = {
+    "control-plane",
+}
+
+
+# =====================================================
 # Docker Detection
 # =====================================================
 
 def is_running_inside_docker() -> bool:
     """
-    Detect whether the application is running inside
-    a Docker container.
+    Detect whether the application is running inside Docker.
     """
 
     if Path("/.dockerenv").exists():
@@ -54,12 +81,24 @@ def is_running_inside_docker() -> bool:
         )
 
         return (
-            "docker" in cgroup
-            or "containerd" in cgroup
+            "docker" in cgroup.lower()
+            or "containerd" in cgroup.lower()
         )
 
     except Exception:
         return False
+
+
+# =====================================================
+# Docker CLI Detection
+# =====================================================
+
+def docker_cli_available() -> bool:
+    """
+    Check whether Docker CLI is available.
+    """
+
+    return shutil.which("docker") is not None
 
 
 # =====================================================
@@ -72,9 +111,7 @@ def host_docker_internal_available() -> bool:
     """
 
     try:
-        socket.gethostbyname(
-            "host.docker.internal"
-        )
+        socket.gethostbyname(DOCKER_HOSTNAME)
 
         return True
 
@@ -91,7 +128,10 @@ def extract_server(
     config_text: str,
 ) -> str | None:
     """
-    Extract Kubernetes API server from kubeconfig.
+    Extract the first Kubernetes API server from kubeconfig.
+
+    The current kubeconfig is expected to contain the
+    active cluster server near the beginning of the file.
     """
 
     match = re.search(
@@ -106,52 +146,240 @@ def extract_server(
 
 
 # =====================================================
-# Rewrite Localhost Endpoint
+# Cluster Detection
 # =====================================================
 
-def rewrite_localhost_server(
-    server: str,
-) -> str:
+def is_kind_cluster(
+    config_text: str,
+) -> bool:
     """
-    Convert Docker Desktop localhost Kubernetes
-    endpoint to host.docker.internal.
+    Detect whether the kubeconfig contains a Kind cluster.
+
+    This does not depend on a specific Kind version or
+    specific API port.
+    """
+
+    patterns = (
+        r"\bkind-[A-Za-z0-9._-]+",
+        r"\bkind-devops\b",
+        r"\bkind\b",
+    )
+
+    for pattern in patterns:
+
+        if re.search(
+            pattern,
+            config_text,
+            flags=re.IGNORECASE,
+        ):
+
+            return True
+
+    return False
+
+
+def is_eks_cluster(
+    config_text: str,
+) -> bool:
+    """
+    Detect Amazon EKS from the kubeconfig.
+
+    EKS endpoints normally contain:
+        eks.amazonaws.com
+    """
+
+    return (
+        "eks.amazonaws.com"
+        in config_text.lower()
+    )
+
+
+# =====================================================
+# Docker Command Helper
+# =====================================================
+
+def run_docker(
+    args: list[str],
+) -> str | None:
+    """
+    Execute a Docker CLI command.
+
+    Returns stdout when successful.
+    """
+
+    if not docker_cli_available():
+        return None
+
+    try:
+
+        result = subprocess.run(
+            ["docker", *args],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=False,
+        )
+
+        if result.returncode != 0:
+            return None
+
+        return result.stdout.strip()
+
+    except Exception:
+
+        return None
+
+
+# =====================================================
+# Kind Control Plane Discovery
+# =====================================================
+
+def discover_kind_control_plane() -> tuple[str, int] | None:
+    """
+    Discover the Kind control-plane container.
+
+    Returns:
+
+        (container_ip, api_port)
 
     Example:
 
-        https://127.0.0.1:49237
+        ("172.18.0.2", 6443)
 
-    becomes:
+    This dynamically discovers the container instead
+    of assuming a host port such as 33093.
+    """
 
-        https://host.docker.internal:49237
+    output = run_docker(
+        [
+            "ps",
+            "--filter",
+            "name=control-plane",
+            "--format",
+            "{{.ID}}",
+        ]
+    )
+
+    if not output:
+        return None
+
+    container_ids = [
+        line.strip()
+        for line in output.splitlines()
+        if line.strip()
+    ]
+
+    for container_id in container_ids:
+
+        inspect_output = run_docker(
+            [
+                "inspect",
+                container_id,
+            ]
+        )
+
+        if not inspect_output:
+            continue
+
+        try:
+
+            data = json.loads(
+                inspect_output
+            )
+
+            if not data:
+                continue
+
+            container = data[0]
+
+            networks = (
+                container
+                .get("NetworkSettings", {})
+                .get("Networks", {})
+            )
+
+            container_ip = None
+
+            for network in networks.values():
+
+                ip = network.get(
+                    "IPAddress"
+                )
+
+                if ip:
+                    container_ip = ip
+                    break
+
+            if not container_ip:
+                continue
+
+            return (
+                container_ip,
+                6443,
+            )
+
+        except (
+            json.JSONDecodeError,
+            KeyError,
+            TypeError,
+        ):
+
+            continue
+
+    return None
+
+
+# =====================================================
+# Localhost Endpoint Detection
+# =====================================================
+
+def is_localhost_server(
+    server: str,
+) -> bool:
+    """
+    Determine whether a Kubernetes server is localhost.
+    """
+
+    try:
+
+        hostname = urlparse(
+            server
+        ).hostname
+
+        return hostname in LOCALHOSTS
+
+    except Exception:
+
+        return False
+
+
+# =====================================================
+# Rewrite Server Hostname
+# =====================================================
+
+def replace_server_host(
+    server: str,
+    hostname: str,
+    port: int | None = None,
+) -> str:
+    """
+    Replace hostname and optionally port while preserving
+    scheme, path, query and fragment.
     """
 
     parsed = urlparse(server)
 
-    if parsed.hostname not in {
-        "127.0.0.1",
-        "localhost",
-        "::1",
-    }:
-
-        return server
-
-    if not host_docker_internal_available():
-
-        print(
-            "WARNING: host.docker.internal "
-            "is unavailable."
-        )
-
-        return server
-
-    hostname = "host.docker.internal"
+    final_port = (
+        port
+        if port is not None
+        else parsed.port
+    )
 
     netloc = hostname
 
-    if parsed.port:
-
+    if final_port:
         netloc = (
-            f"{hostname}:{parsed.port}"
+            f"{hostname}:{final_port}"
         )
 
     return urlunparse(
@@ -167,19 +395,136 @@ def rewrite_localhost_server(
 
 
 # =====================================================
+# Docker Desktop Endpoint
+# =====================================================
+
+def rewrite_docker_desktop_endpoint(
+    server: str,
+) -> str:
+    """
+    Convert Docker Desktop localhost endpoint to:
+
+        https://host.docker.internal:<port>
+
+    Only used when host.docker.internal is available.
+    """
+
+    if not is_localhost_server(server):
+        return server
+
+    if not host_docker_internal_available():
+        return server
+
+    parsed = urlparse(server)
+
+    return replace_server_host(
+        server,
+        DOCKER_HOSTNAME,
+        parsed.port,
+    )
+
+
+# =====================================================
+# Kind Endpoint
+# =====================================================
+
+def rewrite_kind_endpoint(
+    server: str,
+) -> str | None:
+    """
+    Rewrite a localhost Kind API endpoint to the
+    internal Kind control-plane container.
+
+    Example:
+
+        https://127.0.0.1:33093
+
+    becomes:
+
+        https://172.18.0.2:6443
+    """
+
+    if not is_localhost_server(server):
+        return None
+
+    control_plane = (
+        discover_kind_control_plane()
+    )
+
+    if not control_plane:
+        return None
+
+    container_ip, api_port = (
+        control_plane
+    )
+
+    return replace_server_host(
+        server,
+        container_ip,
+        api_port,
+    )
+
+
+# =====================================================
+# TLS Configuration
+# =====================================================
+
+def add_insecure_tls(
+    config_text: str,
+    runtime_server: str,
+) -> str:
+    """
+    Disable TLS verification for endpoints where the
+    hostname differs from the certificate.
+
+    This is mainly intended for Docker Desktop local
+    development.
+
+    Kind normally retains its CA data.
+    """
+
+    config_text = re.sub(
+        r"(?m)^\s*certificate-authority-data:.*\n",
+        "",
+        config_text,
+    )
+
+    config_text = re.sub(
+        r"(?m)^\s*insecure-skip-tls-verify:.*\n",
+        "",
+        config_text,
+    )
+
+    pattern = (
+        r"(?m)^(\s*server:\s*"
+        + re.escape(runtime_server)
+        + r"\s*)$"
+    )
+
+    config_text = re.sub(
+        pattern,
+        r"\1\n    insecure-skip-tls-verify: true",
+        config_text,
+        count=1,
+    )
+
+    return config_text
+
+
+# =====================================================
 # Prepare Kubeconfig
 # =====================================================
 
 def prepare_kubeconfig() -> Path | None:
     """
-    Prepare the runtime kubeconfig.
+    Prepare a runtime kubeconfig.
 
-    The original kubeconfig is never modified.
+    Original kubeconfig is NEVER modified.
     """
 
-    # -------------------------------------------------
+    # =================================================
     # Check source configuration
-    # -------------------------------------------------
+    # =================================================
 
     if not SOURCE_CONFIG.exists():
 
@@ -193,29 +538,26 @@ def prepare_kubeconfig() -> Path | None:
 
         return None
 
-
-    # -------------------------------------------------
+    # =================================================
     # Create runtime directory
-    # -------------------------------------------------
+    # =================================================
 
     RUNTIME_DIR.mkdir(
         parents=True,
         exist_ok=True,
     )
 
-
-    # -------------------------------------------------
+    # =================================================
     # Read kubeconfig
-    # -------------------------------------------------
+    # =================================================
 
     config_text = SOURCE_CONFIG.read_text(
         encoding="utf-8"
     )
 
-
-    # -------------------------------------------------
-    # Find Kubernetes API server
-    # -------------------------------------------------
+    # =================================================
+    # Find API server
+    # =================================================
 
     server = extract_server(
         config_text
@@ -235,54 +577,139 @@ def prepare_kubeconfig() -> Path | None:
 
         return RUNTIME_CONFIG
 
-
     print(
         f"Original Kubernetes API Server: {server}"
     )
 
-
-    # -------------------------------------------------
-    # Default
-    # -------------------------------------------------
-
     runtime_server = server
 
-    docker_localhost = False
+    docker_desktop_localhost = False
 
+    kind_localhost = False
 
-    # -------------------------------------------------
-    # Docker environment
-    # -------------------------------------------------
+    # =================================================
+    # Environment Detection
+    # =================================================
 
-    if is_running_inside_docker():
+    inside_docker = (
+        is_running_inside_docker()
+    )
 
-        parsed = urlparse(server)
+    kind_cluster = is_kind_cluster(
+        config_text
+    )
 
-        # ---------------------------------------------
-        # Docker Desktop localhost endpoint
-        # ---------------------------------------------
+    eks_cluster = is_eks_cluster(
+        config_text
+    )
+
+    print(
+        f"Running inside Docker: {inside_docker}"
+    )
+
+    print(
+        f"Kind cluster detected: {kind_cluster}"
+    )
+
+    print(
+        f"EKS cluster detected: {eks_cluster}"
+    )
+
+    # =================================================
+    # Only adapt endpoints inside Docker
+    # =================================================
+
+    if inside_docker:
+
+        # =============================================
+        # Case 1:
+        # Kind on Linux
+        # =============================================
 
         if (
-            parsed.hostname
-            in {
-                "127.0.0.1",
-                "localhost",
-                "::1",
-            }
-            and host_docker_internal_available()
+            kind_cluster
+            and is_localhost_server(server)
         ):
 
-            runtime_server = (
-                rewrite_localhost_server(
+            kind_server = (
+                rewrite_kind_endpoint(
                     server
                 )
             )
 
-            docker_localhost = True
+            if kind_server:
 
+                runtime_server = (
+                    kind_server
+                )
+
+                kind_localhost = True
+
+                print(
+                    "Kind cluster detected."
+                )
+
+                print(
+                    "Kind control-plane endpoint: "
+                    f"{runtime_server}"
+                )
+
+        # =============================================
+        # Case 2:
+        # Docker Desktop Kubernetes
+        # =============================================
+
+        elif (
+            is_localhost_server(server)
+            and host_docker_internal_available()
+        ):
+
+            runtime_server = (
+                rewrite_docker_desktop_endpoint(
+                    server
+                )
+            )
+
+            docker_desktop_localhost = True
+
+            print(
+                "Docker Desktop localhost "
+                "Kubernetes endpoint detected."
+            )
+
+        # =============================================
+        # Case 3:
+        # EKS
+        # =============================================
+
+        elif eks_cluster:
+
+            print(
+                "Amazon EKS endpoint detected."
+            )
+
+            print(
+                "Preserving EKS endpoint."
+            )
+
+        # =============================================
+        # Case 4:
+        # Any other remote Kubernetes
+        # =============================================
+
+        else:
+
+            print(
+                "Remote Kubernetes endpoint "
+                "detected."
+            )
+
+            print(
+                "Preserving Kubernetes endpoint."
+            )
 
     # =================================================
-    # Rewrite Kubernetes API endpoint
+    # Rewrite server in runtime config
     # =================================================
 
     if runtime_server != server:
@@ -305,59 +732,32 @@ def prepare_kubeconfig() -> Path | None:
             f"{runtime_server}"
         )
 
-
     # =================================================
     # Docker Desktop TLS Handling
     # =================================================
 
-    if docker_localhost:
+    if docker_desktop_localhost:
 
         print(
-            "Docker Desktop localhost endpoint detected."
+            "Applying Docker Desktop local TLS "
+            "configuration."
         )
 
-
-        # ---------------------------------------------
-        # Remove certificate-authority-data
-        # ---------------------------------------------
-
-        config_text = re.sub(
-            r"(?m)^\s*certificate-authority-data:.*\n",
-            "",
+        config_text = add_insecure_tls(
             config_text,
+            runtime_server,
         )
 
+    # =================================================
+    # Kind TLS Handling
+    # =================================================
 
-        # ---------------------------------------------
-        # Remove existing insecure setting
-        # ---------------------------------------------
-
-        config_text = re.sub(
-            r"(?m)^\s*insecure-skip-tls-verify:.*\n",
-            "",
-            config_text,
-        )
-
-
-        # ---------------------------------------------
-        # Add insecure TLS verification
-        # ---------------------------------------------
-
-        config_text = re.sub(
-            r"(?m)^(\s*server:\s*"
-            + re.escape(runtime_server)
-            + r"\s*)$",
-            r"\1\n    insecure-skip-tls-verify: true",
-            config_text,
-            count=1,
-        )
-
+    if kind_localhost:
 
         print(
-            "TLS verification disabled for "
-            "Docker Desktop local endpoint."
+            "Preserving Kind certificate "
+            "authority data."
         )
-
 
     # =================================================
     # Write runtime configuration
@@ -368,12 +768,10 @@ def prepare_kubeconfig() -> Path | None:
         encoding="utf-8",
     )
 
-
     print(
         "Runtime kubeconfig created: "
         f"{RUNTIME_CONFIG}"
     )
-
 
     return RUNTIME_CONFIG
 
