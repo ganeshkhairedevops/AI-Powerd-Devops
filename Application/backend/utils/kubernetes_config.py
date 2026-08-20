@@ -11,16 +11,16 @@ Supported environments:
 - Amazon EKS
 - Other remote Kubernetes clusters
 - Local Kubernetes installations
-- Any Kubernetes endpoint already reachable from the container
 
 Design principles:
 
 - Never modify the original kubeconfig.
-- Preserve remote Kubernetes endpoints.
+- Always use the CURRENT kubeconfig context.
+- Preserve EKS and remote Kubernetes endpoints.
 - Adapt Docker Desktop localhost endpoints.
 - Detect Kind dynamically through Docker.
-- Do not hardcode Kind ports.
-- Do not require platform-specific docker-compose files.
+- Do not hardcode Kind API ports.
+- Generate a separate runtime kubeconfig.
 """
 
 from __future__ import annotations
@@ -33,6 +33,8 @@ import socket
 import subprocess
 from pathlib import Path
 from urllib.parse import urlparse, urlunparse
+
+import yaml
 
 
 # =====================================================
@@ -58,10 +60,6 @@ LOCALHOSTS = {
 
 DOCKER_HOSTNAME = "host.docker.internal"
 
-KIND_CONTROL_PLANE_NAMES = {
-    "control-plane",
-}
-
 
 # =====================================================
 # Docker Detection
@@ -69,14 +67,18 @@ KIND_CONTROL_PLANE_NAMES = {
 
 def is_running_inside_docker() -> bool:
     """
-    Detect whether the application is running inside Docker.
+    Detect whether the application is running inside
+    a Docker container.
     """
 
     if Path("/.dockerenv").exists():
         return True
 
     try:
-        cgroup = Path("/proc/1/cgroup").read_text(
+
+        cgroup = Path(
+            "/proc/1/cgroup"
+        ).read_text(
             errors="ignore"
         )
 
@@ -86,6 +88,7 @@ def is_running_inside_docker() -> bool:
         )
 
     except Exception:
+
         return False
 
 
@@ -98,7 +101,9 @@ def docker_cli_available() -> bool:
     Check whether Docker CLI is available.
     """
 
-    return shutil.which("docker") is not None
+    return shutil.which(
+        "docker"
+    ) is not None
 
 
 # =====================================================
@@ -111,7 +116,10 @@ def host_docker_internal_available() -> bool:
     """
 
     try:
-        socket.gethostbyname(DOCKER_HOSTNAME)
+
+        socket.gethostbyname(
+            DOCKER_HOSTNAME
+        )
 
         return True
 
@@ -121,56 +129,225 @@ def host_docker_internal_available() -> bool:
 
 
 # =====================================================
-# Kubernetes Server Detection
+# Active Kubernetes Context
 # =====================================================
 
-def extract_server(
+def get_active_cluster_info(
     config_text: str,
-) -> str | None:
+) -> tuple[
+    str | None,
+    str | None,
+    str | None,
+]:
     """
-    Extract the first Kubernetes API server from kubeconfig.
+    Get information about the CURRENT kubeconfig context.
 
-    The current kubeconfig is expected to contain the
-    active cluster server near the beginning of the file.
+    Returns:
+
+        (
+            current_context,
+            cluster_name,
+            server,
+        )
+
+    Example:
+
+        (
+            "kind-devops",
+            "kind-devops",
+            "https://127.0.0.1:33093",
+        )
+
+    IMPORTANT:
+
+    This function does NOT simply take the first
+    server from the kubeconfig.
+
+    It follows:
+
+        current-context
+              ?
+        matching context
+              ?
+        cluster
+              ?
+        server
     """
 
-    match = re.search(
-        r"(?m)^\s*server:\s*(https?://\S+)\s*$",
-        config_text,
+    try:
+
+        config = yaml.safe_load(
+            config_text
+        )
+
+    except yaml.YAMLError as exc:
+
+        print(
+            "WARNING: Failed to parse kubeconfig:"
+        )
+
+        print(
+            f"  {exc}"
+        )
+
+        return (
+            None,
+            None,
+            None,
+        )
+
+    if not isinstance(
+        config,
+        dict,
+    ):
+
+        return (
+            None,
+            None,
+            None,
+        )
+
+    # -------------------------------------------------
+    # Current context
+    # -------------------------------------------------
+
+    current_context = config.get(
+        "current-context"
     )
 
-    if not match:
-        return None
+    if not current_context:
 
-    return match.group(1)
+        return (
+            None,
+            None,
+            None,
+        )
+
+    # -------------------------------------------------
+    # Find cluster associated with current context
+    # -------------------------------------------------
+
+    cluster_name = None
+
+    contexts = config.get(
+        "contexts",
+        [],
+    )
+
+    for context in contexts:
+
+        if not isinstance(
+            context,
+            dict,
+        ):
+            continue
+
+        if context.get(
+            "name"
+        ) != current_context:
+
+            continue
+
+        context_data = context.get(
+            "context",
+            {},
+        )
+
+        if isinstance(
+            context_data,
+            dict,
+        ):
+
+            cluster_name = (
+                context_data.get(
+                    "cluster"
+                )
+            )
+
+        break
+
+    if not cluster_name:
+
+        return (
+            current_context,
+            None,
+            None,
+        )
+
+    # -------------------------------------------------
+    # Find server for that cluster
+    # -------------------------------------------------
+
+    server = None
+
+    clusters = config.get(
+        "clusters",
+        [],
+    )
+
+    for cluster in clusters:
+
+        if not isinstance(
+            cluster,
+            dict,
+        ):
+            continue
+
+        if cluster.get(
+            "name"
+        ) != cluster_name:
+
+            continue
+
+        cluster_data = cluster.get(
+            "cluster",
+            {},
+        )
+
+        if isinstance(
+            cluster_data,
+            dict,
+        ):
+
+            server = (
+                cluster_data.get(
+                    "server"
+                )
+            )
+
+        break
+
+    return (
+        current_context,
+        cluster_name,
+        server,
+    )
 
 
 # =====================================================
-# Cluster Detection
+# Active Cluster Detection
 # =====================================================
 
-def is_kind_cluster(
-    config_text: str,
+def is_active_kind_context(
+    current_context: str | None,
+    cluster_name: str | None,
 ) -> bool:
     """
-    Detect whether the kubeconfig contains a Kind cluster.
-
-    This does not depend on a specific Kind version or
-    specific API port.
+    Determine whether the ACTIVE context is a Kind cluster.
     """
 
-    patterns = (
-        r"\bkind-[A-Za-z0-9._-]+",
-        r"\bkind-devops\b",
-        r"\bkind\b",
-    )
+    values = [
+        current_context,
+        cluster_name,
+    ]
 
-    for pattern in patterns:
+    for value in values:
 
-        if re.search(
-            pattern,
-            config_text,
-            flags=re.IGNORECASE,
+        if not value:
+            continue
+
+        if value.lower().startswith(
+            "kind-"
         ):
 
             return True
@@ -178,20 +355,41 @@ def is_kind_cluster(
     return False
 
 
-def is_eks_cluster(
-    config_text: str,
+def is_active_eks_cluster(
+    server: str | None,
+    cluster_name: str | None,
+    current_context: str | None,
 ) -> bool:
     """
-    Detect Amazon EKS from the kubeconfig.
-
-    EKS endpoints normally contain:
-        eks.amazonaws.com
+    Determine whether the ACTIVE cluster is EKS.
     """
 
-    return (
-        "eks.amazonaws.com"
-        in config_text.lower()
-    )
+    values = [
+        server,
+        cluster_name,
+        current_context,
+    ]
+
+    for value in values:
+
+        if not value:
+            continue
+
+        if (
+            "eks.amazonaws.com"
+            in value.lower()
+        ):
+
+            return True
+
+        if (
+            "arn:aws:eks"
+            in value.lower()
+        ):
+
+            return True
+
+    return False
 
 
 # =====================================================
@@ -202,18 +400,22 @@ def run_docker(
     args: list[str],
 ) -> str | None:
     """
-    Execute a Docker CLI command.
+    Execute Docker CLI command.
 
     Returns stdout when successful.
     """
 
     if not docker_cli_available():
+
         return None
 
     try:
 
         result = subprocess.run(
-            ["docker", *args],
+            [
+                "docker",
+                *args,
+            ],
             capture_output=True,
             text=True,
             timeout=5,
@@ -221,6 +423,7 @@ def run_docker(
         )
 
         if result.returncode != 0:
+
             return None
 
         return result.stdout.strip()
@@ -234,20 +437,27 @@ def run_docker(
 # Kind Control Plane Discovery
 # =====================================================
 
-def discover_kind_control_plane() -> tuple[str, int] | None:
+def discover_kind_control_plane() -> (
+    tuple[str, int] | None
+):
     """
     Discover the Kind control-plane container.
 
     Returns:
 
-        (container_ip, api_port)
+        (
+            container_ip,
+            api_port
+        )
 
     Example:
 
-        ("172.18.0.2", 6443)
+        (
+            "172.18.0.2",
+            6443
+        )
 
-    This dynamically discovers the container instead
-    of assuming a host port such as 33093.
+    Docker socket access is required.
     """
 
     output = run_docker(
@@ -261,6 +471,7 @@ def discover_kind_control_plane() -> tuple[str, int] | None:
     )
 
     if not output:
+
         return None
 
     container_ids = [
@@ -279,6 +490,7 @@ def discover_kind_control_plane() -> tuple[str, int] | None:
         )
 
         if not inspect_output:
+
             continue
 
         try:
@@ -288,35 +500,70 @@ def discover_kind_control_plane() -> tuple[str, int] | None:
             )
 
             if not data:
+
                 continue
 
             container = data[0]
 
             networks = (
                 container
-                .get("NetworkSettings", {})
-                .get("Networks", {})
+                .get(
+                    "NetworkSettings",
+                    {},
+                )
+                .get(
+                    "Networks",
+                    {},
+                )
             )
 
-            container_ip = None
+            if not networks:
 
-            for network in networks.values():
-
-                ip = network.get(
-                    "IPAddress"
-                )
-
-                if ip:
-                    container_ip = ip
-                    break
-
-            if not container_ip:
                 continue
 
-            return (
-                container_ip,
-                6443,
+            # -------------------------------------------------
+            # Prefer the Kind network
+            # -------------------------------------------------
+
+            preferred_network = (
+                networks.get("kind")
             )
+
+            if preferred_network:
+
+                container_ip = (
+                    preferred_network.get(
+                        "IPAddress"
+                    )
+                )
+
+                if container_ip:
+
+                    return (
+                        container_ip,
+                        6443,
+                    )
+
+            # -------------------------------------------------
+            # Fallback: first available network
+            # -------------------------------------------------
+
+            for network in (
+                networks.values()
+            ):
+
+                container_ip = (
+                    network.get(
+                        "IPAddress"
+                    )
+                )
+
+                if container_ip:
+
+                    return (
+                        container_ip,
+                        6443,
+                    )
 
         except (
             json.JSONDecodeError,
@@ -330,14 +577,15 @@ def discover_kind_control_plane() -> tuple[str, int] | None:
 
 
 # =====================================================
-# Localhost Endpoint Detection
+# URL Helpers
 # =====================================================
 
 def is_localhost_server(
     server: str,
 ) -> bool:
     """
-    Determine whether a Kubernetes server is localhost.
+    Determine whether a Kubernetes server points
+    to localhost.
     """
 
     try:
@@ -353,10 +601,6 @@ def is_localhost_server(
         return False
 
 
-# =====================================================
-# Rewrite Server Hostname
-# =====================================================
-
 def replace_server_host(
     server: str,
     hostname: str,
@@ -364,10 +608,12 @@ def replace_server_host(
 ) -> str:
     """
     Replace hostname and optionally port while preserving
-    scheme, path, query and fragment.
+    the remaining URL components.
     """
 
-    parsed = urlparse(server)
+    parsed = urlparse(
+        server
+    )
 
     final_port = (
         port
@@ -378,6 +624,7 @@ def replace_server_host(
     netloc = hostname
 
     if final_port:
+
         netloc = (
             f"{hostname}:{final_port}"
         )
@@ -402,20 +649,33 @@ def rewrite_docker_desktop_endpoint(
     server: str,
 ) -> str:
     """
-    Convert Docker Desktop localhost endpoint to:
+    Convert Docker Desktop localhost endpoint:
 
-        https://host.docker.internal:<port>
+        https://127.0.0.1:49237
 
-    Only used when host.docker.internal is available.
+    into:
+
+        https://host.docker.internal:49237
     """
 
-    if not is_localhost_server(server):
+    if not is_localhost_server(
+        server
+    ):
+
         return server
 
     if not host_docker_internal_available():
+
+        print(
+            "WARNING: host.docker.internal "
+            "is unavailable."
+        )
+
         return server
 
-    parsed = urlparse(server)
+    parsed = urlparse(
+        server
+    )
 
     return replace_server_host(
         server,
@@ -432,8 +692,8 @@ def rewrite_kind_endpoint(
     server: str,
 ) -> str | None:
     """
-    Rewrite a localhost Kind API endpoint to the
-    internal Kind control-plane container.
+    Convert a localhost Kind API endpoint into
+    the internal Kind control-plane endpoint.
 
     Example:
 
@@ -444,7 +704,10 @@ def rewrite_kind_endpoint(
         https://172.18.0.2:6443
     """
 
-    if not is_localhost_server(server):
+    if not is_localhost_server(
+        server
+    ):
+
         return None
 
     control_plane = (
@@ -452,6 +715,12 @@ def rewrite_kind_endpoint(
     )
 
     if not control_plane:
+
+        print(
+            "WARNING: Kind control-plane "
+            "container could not be discovered."
+        )
+
         return None
 
     container_ip, api_port = (
@@ -466,7 +735,7 @@ def rewrite_kind_endpoint(
 
 
 # =====================================================
-# TLS Configuration
+# Docker Desktop TLS
 # =====================================================
 
 def add_insecure_tls(
@@ -474,14 +743,16 @@ def add_insecure_tls(
     runtime_server: str,
 ) -> str:
     """
-    Disable TLS verification for endpoints where the
-    hostname differs from the certificate.
+    Disable TLS verification for Docker Desktop's
+    local Kubernetes endpoint.
 
-    This is mainly intended for Docker Desktop local
-    development.
-
-    Kind normally retains its CA data.
+    Kind keeps its CA data.
+    EKS keeps its CA data.
     """
+
+    # -------------------------------------------------
+    # Remove CA data
+    # -------------------------------------------------
 
     config_text = re.sub(
         r"(?m)^\s*certificate-authority-data:.*\n",
@@ -489,11 +760,19 @@ def add_insecure_tls(
         config_text,
     )
 
+    # -------------------------------------------------
+    # Remove existing insecure setting
+    # -------------------------------------------------
+
     config_text = re.sub(
         r"(?m)^\s*insecure-skip-tls-verify:.*\n",
         "",
         config_text,
     )
+
+    # -------------------------------------------------
+    # Add insecure TLS
+    # -------------------------------------------------
 
     pattern = (
         r"(?m)^(\s*server:\s*"
@@ -517,9 +796,9 @@ def add_insecure_tls(
 
 def prepare_kubeconfig() -> Path | None:
     """
-    Prepare a runtime kubeconfig.
+    Prepare runtime kubeconfig.
 
-    Original kubeconfig is NEVER modified.
+    The original kubeconfig is NEVER modified.
     """
 
     # =================================================
@@ -551,23 +830,40 @@ def prepare_kubeconfig() -> Path | None:
     # Read kubeconfig
     # =================================================
 
-    config_text = SOURCE_CONFIG.read_text(
-        encoding="utf-8"
+    config_text = (
+        SOURCE_CONFIG.read_text(
+            encoding="utf-8"
+        )
     )
 
     # =================================================
-    # Find API server
+    # Get ACTIVE cluster information
     # =================================================
 
-    server = extract_server(
+    (
+        current_context,
+        cluster_name,
+        server,
+    ) = get_active_cluster_info(
         config_text
+    )
+
+    print(
+        f"Current Kubernetes context: "
+        f"{current_context}"
+    )
+
+    print(
+        f"Active Kubernetes cluster: "
+        f"{cluster_name}"
     )
 
     if not server:
 
         print(
             "WARNING: Kubernetes API server "
-            "could not be found in kubeconfig."
+            "could not be found for the "
+            "current context."
         )
 
         shutil.copy2(
@@ -578,8 +874,51 @@ def prepare_kubeconfig() -> Path | None:
         return RUNTIME_CONFIG
 
     print(
-        f"Original Kubernetes API Server: {server}"
+        f"Active Kubernetes API Server: "
+        f"{server}"
     )
+
+    # =================================================
+    # Environment detection
+    # =================================================
+
+    inside_docker = (
+        is_running_inside_docker()
+    )
+
+    kind_cluster = (
+        is_active_kind_context(
+            current_context,
+            cluster_name,
+        )
+    )
+
+    eks_cluster = (
+        is_active_eks_cluster(
+            server,
+            cluster_name,
+            current_context,
+        )
+    )
+
+    print(
+        f"Running inside Docker: "
+        f"{inside_docker}"
+    )
+
+    print(
+        f"Kind cluster detected: "
+        f"{kind_cluster}"
+    )
+
+    print(
+        f"EKS cluster detected: "
+        f"{eks_cluster}"
+    )
+
+    # =================================================
+    # Defaults
+    # =================================================
 
     runtime_server = server
 
@@ -588,47 +927,20 @@ def prepare_kubeconfig() -> Path | None:
     kind_localhost = False
 
     # =================================================
-    # Environment Detection
-    # =================================================
-
-    inside_docker = (
-        is_running_inside_docker()
-    )
-
-    kind_cluster = is_kind_cluster(
-        config_text
-    )
-
-    eks_cluster = is_eks_cluster(
-        config_text
-    )
-
-    print(
-        f"Running inside Docker: {inside_docker}"
-    )
-
-    print(
-        f"Kind cluster detected: {kind_cluster}"
-    )
-
-    print(
-        f"EKS cluster detected: {eks_cluster}"
-    )
-
-    # =================================================
-    # Only adapt endpoints inside Docker
+    # Docker-specific handling
     # =================================================
 
     if inside_docker:
 
         # =============================================
-        # Case 1:
-        # Kind on Linux
+        # Kind
         # =============================================
 
         if (
             kind_cluster
-            and is_localhost_server(server)
+            and is_localhost_server(
+                server
+            )
         ):
 
             kind_server = (
@@ -655,12 +967,14 @@ def prepare_kubeconfig() -> Path | None:
                 )
 
         # =============================================
-        # Case 2:
         # Docker Desktop Kubernetes
         # =============================================
 
         elif (
-            is_localhost_server(server)
+            not eks_cluster
+            and is_localhost_server(
+                server
+            )
             and host_docker_internal_available()
         ):
 
@@ -678,7 +992,6 @@ def prepare_kubeconfig() -> Path | None:
             )
 
         # =============================================
-        # Case 3:
         # EKS
         # =============================================
 
@@ -693,8 +1006,7 @@ def prepare_kubeconfig() -> Path | None:
             )
 
         # =============================================
-        # Case 4:
-        # Any other remote Kubernetes
+        # Normal remote Kubernetes
         # =============================================
 
         else:
@@ -709,7 +1021,7 @@ def prepare_kubeconfig() -> Path | None:
             )
 
     # =================================================
-    # Rewrite server in runtime config
+    # Rewrite active server
     # =================================================
 
     if runtime_server != server:
@@ -733,7 +1045,7 @@ def prepare_kubeconfig() -> Path | None:
         )
 
     # =================================================
-    # Docker Desktop TLS Handling
+    # Docker Desktop TLS
     # =================================================
 
     if docker_desktop_localhost:
@@ -748,14 +1060,30 @@ def prepare_kubeconfig() -> Path | None:
             runtime_server,
         )
 
+        print(
+            "TLS verification disabled for "
+            "Docker Desktop local endpoint."
+        )
+
     # =================================================
-    # Kind TLS Handling
+    # Kind TLS
     # =================================================
 
     if kind_localhost:
 
         print(
             "Preserving Kind certificate "
+            "authority data."
+        )
+
+    # =================================================
+    # EKS TLS
+    # =================================================
+
+    if eks_cluster:
+
+        print(
+            "Preserving EKS certificate "
             "authority data."
         )
 
