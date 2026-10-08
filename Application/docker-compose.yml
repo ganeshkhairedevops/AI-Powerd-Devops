@@ -1,9 +1,5 @@
 services:
-
-  # ===================================================
   # Ollama
-  # ===================================================
-
   ollama:
     image: ollama/ollama:latest
     container_name: devops-ollama
@@ -19,11 +15,7 @@ services:
 
     restart: unless-stopped
 
-
-  # ===================================================
   # Backend
-  # ===================================================
-
   backend:
     build:
       context: ./backend
@@ -36,47 +28,22 @@ services:
       - "${APP_PORT:-8000}:8000"
 
     environment:
-
-      # =================================================
       # Ollama
-      # =================================================
-
       OLLAMA_BASE_URL: http://ollama:11434
       OLLAMA_CHAT_MODEL: ${OLLAMA_CHAT_MODEL:-llama3.1:8b}
       OLLAMA_EMBED_MODEL: ${OLLAMA_EMBED_MODEL:-nomic-embed-text}
-
-
-      # =================================================
       # Kubernetes
-      # =================================================
-
       KUBECONFIG: /tmp/kube/config
 
 
     volumes:
-
-      # =================================================
       # RAG
-      # =================================================
-
       - chroma_data:/app/chroma_db
       - uploads_data:/app/uploads
-
-
-      # =================================================
       # Docker
-      # =================================================
-
       - /var/run/docker.sock:/var/run/docker.sock
-
-
-      # =================================================
       # Kubernetes
-      # =================================================
-
       - ${KUBE_CONFIG_PATH}:/root/.kube:ro
-
-
     # Provides host.docker.internal on Linux Docker
     # and works with Docker Desktop as well.
     extra_hosts:
@@ -88,11 +55,7 @@ services:
 
     restart: unless-stopped
 
-
-  # ===================================================
   # Frontend
-  # ===================================================
-
   frontend:
     build:
       context: ./frontend
@@ -109,11 +72,7 @@ services:
 
     restart: unless-stopped
 
-
-# =====================================================
 # Persistent Volumes
-# =====================================================
-
 volumes:
 
   ollama_data:
