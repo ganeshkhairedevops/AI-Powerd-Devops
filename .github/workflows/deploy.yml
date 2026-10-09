@@ -88,11 +88,18 @@ jobs:
             -f Application/frontend/Dockerfile \
             Application/frontend
 
-      - name: Install Trivy
-        uses: aquasecurity/setup-trivy@v0.2.0
-        with:
-          version: latest
-          cache: false
+      
+      - name: Install Trivy CLI
+        shell: bash
+        run: |
+          set -eu
+          TRIVY_VERSION="v0.69.3"
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh \
+            -o /tmp/install-trivy.sh
+          sh /tmp/install-trivy.sh -b "$RUNNER_TEMP" "$TRIVY_VERSION"
+          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/trivy" --version
+
 
       - name: Scan backend image
         run: |
