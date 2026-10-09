@@ -12,6 +12,9 @@ jobs:
     runs-on: [self-hosted, windows, x64]
 
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
       - name: Confirm runner is working
         shell: powershell
         run: |
@@ -21,12 +24,44 @@ jobs:
           Get-CimInstance Win32_OperatingSystem |
             Select-Object Caption, Version
 
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
       - name: Verify repository
         shell: powershell
         run: |
           Write-Host "Repository checked out successfully."
           Get-Location
           Get-ChildItem
+
+      - name: Verify Docker Engine
+        shell: powershell
+        run: |
+          docker --version
+          docker info
+
+      - name: Build backend Docker image
+        shell: powershell
+        run: |
+          docker build -t devops-ai-backend:local -f Application/backend/Dockerfile Application/backend
+          if ($LASTEXITCODE -ne 0) {
+            throw "Backend Docker build failed."
+          }
+
+      - name: Build frontend Docker image
+        shell: powershell
+        run: |
+          docker build -t devops-ai-frontend:local -f Application/frontend/Dockerfile Application/frontend
+          if ($LASTEXITCODE -ne 0) {
+            throw "Frontend Docker build failed."
+          }
+
+      - name: Verify Docker images
+        shell: powershell
+        run: |
+          docker image inspect devops-ai-backend:local
+          if ($LASTEXITCODE -ne 0) {
+            throw "Backend image was not found."
+          }
+          docker image inspect devops-ai-frontend:local
+          if ($LASTEXITCODE -ne 0) {
+            throw "Frontend image was not found."
+          }
+          docker images
