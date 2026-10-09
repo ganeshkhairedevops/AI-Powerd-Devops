@@ -22,7 +22,8 @@ logs/
 
 chroma_db/
 uploads/
-
+uploads/*
+!uploads/.gitkeep
 memory_store.json
 
 tests/__pycache__/
@@ -36,3 +37,6 @@ utils/__pycache__/
 
 .DS_Store
 Thumbs.db
+
+/trivy-backend-report.json
+/trivy-backend-report.txt
