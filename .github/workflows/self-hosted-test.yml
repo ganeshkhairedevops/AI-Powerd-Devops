@@ -1,0 +1,32 @@
+
+name: Self-Hosted Runner Test
+
+on:
+  push:
+    branches:
+      - feat-github-actions
+
+jobs:
+  test-runner:
+    name: Test Windows Runner
+    runs-on: [self-hosted, windows, x64]
+
+    steps:
+      - name: Confirm runner is working
+        shell: pwsh
+        run: |
+          Write-Host "Self-hosted runner is working!"
+          Write-Host "Computer: $env:COMPUTERNAME"
+          Write-Host "Operating System:"
+          Get-CimInstance Win32_OperatingSystem |
+            Select-Object Caption, Version
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Verify repository
+        shell: pwsh
+        run: |
+          Write-Host "Repository checked out successfully."
+          Get-Location
+          Get-ChildItem
