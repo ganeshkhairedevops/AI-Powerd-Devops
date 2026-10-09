@@ -1,32 +1,23 @@
+
 services:
   # Ollama
   ollama:
     image: ollama/ollama:latest
     container_name: devops-ollama
-
     ports:
       - "${OLLAMA_PORT:-11434}:11434"
-
     environment:
       OLLAMA_HOST: 0.0.0.0:11434
-
     volumes:
       - ollama_data:/root/.ollama
-
     restart: unless-stopped
 
   # Backend
   backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-
-    image: devops-ai-backend:latest
+    image: ganeshkhaire14/devops-ai-backend:latest
     container_name: devops-ai-backend
-
     ports:
       - "${APP_PORT:-8000}:8000"
-
     environment:
       # Ollama
       OLLAMA_BASE_URL: http://ollama:11434
@@ -34,8 +25,6 @@ services:
       OLLAMA_EMBED_MODEL: ${OLLAMA_EMBED_MODEL:-nomic-embed-text}
       # Kubernetes
       KUBECONFIG: /tmp/kube/config
-
-
     volumes:
       # RAG
       - chroma_data:/app/chroma_db
@@ -43,40 +32,27 @@ services:
       # Docker
       - /var/run/docker.sock:/var/run/docker.sock
       # Kubernetes
-      - ${KUBE_CONFIG_PATH}:/root/.kube:ro
-    # Provides host.docker.internal on Linux Docker
-    # and works with Docker Desktop as well.
+      - ${KUBE_CONFIG_PATH}:/tmp/kube/config:ro
+      # Provides host.docker.internal on Linux Docker
+      # and works with Docker Desktop as well.
     extra_hosts:
       - "host.docker.internal:host-gateway"
-
-
     depends_on:
       - ollama
-
     restart: unless-stopped
 
   # Frontend
   frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-
-    image: devops-ai-frontend:latest
+    image: ganeshkhaire14/devops-ai-frontend:latest
     container_name: devops-ai-frontend
-
     ports:
       - "${FRONTEND_PORT:-3000}:80"
-
     depends_on:
       - backend
-
     restart: unless-stopped
-
+    
 # Persistent Volumes
 volumes:
-
   ollama_data:
-
   chroma_data:
-
   uploads_data:
