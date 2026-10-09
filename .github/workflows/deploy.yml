@@ -89,9 +89,10 @@ jobs:
             Application/frontend
 
       - name: Install Trivy
-        uses: aquasecurity/setup-trivy@v0.2.3
+        uses: aquasecurity/setup-trivy@v0.2.0
         with:
           version: latest
+          cache: false
 
       - name: Scan backend image
         run: |
