@@ -1,0 +1,6 @@
+services:
+  backend:
+    image: ganeshkhaire14/devops-ai-backend:${DEPLOY_SHA}
+
+  frontend:
+    image: ganeshkhaire14/devops-ai-frontend:${DEPLOY_SHA}
