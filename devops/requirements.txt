@@ -1,4 +1,0 @@
-langchain
-langchain-core
-langchain-ollama
-streamlit
