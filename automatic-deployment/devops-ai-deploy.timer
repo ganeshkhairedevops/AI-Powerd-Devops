@@ -1,0 +1,12 @@
+[Unit]
+Description=Check for new AI-Powered DevOps Agent images every five minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+AccuracySec=30s
+Persistent=true
+Unit=devops-ai-deploy.service
+
+[Install]
+WantedBy=timers.target

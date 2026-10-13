@@ -1,0 +1,11 @@
+[Unit]
+Description=Deploy AI-Powered DevOps Agent from GitHub Actions
+Wants=network-online.target
+After=network-online.target docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/devops-ai-deploy.env
+ExecStart=/usr/local/lib/devops-ai-deploy/deploy.sh
+User=root
