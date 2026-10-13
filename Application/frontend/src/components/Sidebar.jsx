@@ -39,7 +39,7 @@ function Sidebar() {
                      DevOps AI Agent
                 </h1>
                 <p className="text-xs text-gray-400 mt-1">
-                    AI Powered DevOps Assistant
+                    AI Powered DevOps Assistant Agent
                 </p>
             </div>
 
