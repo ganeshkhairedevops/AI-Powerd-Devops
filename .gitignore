@@ -74,3 +74,4 @@ Application/backend/chroma_db/*
 # Frontend
 frontend/node_modules/
 frontend/dist/.env.monitoring
+.env.monitoring
