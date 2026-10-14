@@ -10,7 +10,16 @@ permissions:
   contents: read
 
 jobs:
+  ci:
+    name: Run CI Validation
+    uses: ./.github/workflows/ci.yml
+    permissions:
+      contents: read
+
   build-and-push:
+    name: Build and Publish Images
+    needs: ci
+    if: ${{ needs.ci.result == 'success' }}
     runs-on: ubuntu-latest
 
     steps:

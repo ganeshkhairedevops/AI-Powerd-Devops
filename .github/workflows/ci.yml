@@ -1,12 +1,16 @@
 name: DevOps AI Agent CI
 
 on:
+  workflow_call:
   push:
     branches:
       - feat-github-actions
   pull_request:
     branches:
       - feat-github-actions
+
+permissions:
+  contents: read
 
 jobs:
   backend:
